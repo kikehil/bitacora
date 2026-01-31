@@ -503,10 +503,17 @@
                                     {((currentUser.rol === 'asesor' || currentUser.rol === 'admin') && ['lider', 'encargado', 'ayudante', 'cajero'].includes(userForm.rol)) && (
                                         <div className="form-group">
                                             <label className="form-label">Asignar a Tienda</label>
-                                            <select className="form-input" value={userForm.tienda_cr} onChange={e => setUserForm({...userForm, tienda_cr: e.target.value})} required>
-                                                <option value="">Seleccionar Tienda...</option>
-                                                {listaTiendas.map(t => <option key={t.cr} value={t.cr}>{t.cr} - {t.nombre}</option>)}
-                                            </select>
+                                            <input 
+                                                list="tiendas-user-list" 
+                                                className="form-input" 
+                                                placeholder="Buscar por CR o Nombre..." 
+                                                value={userForm.tienda_cr} 
+                                                onChange={e => setUserForm({...userForm, tienda_cr: e.target.value})} 
+                                                required 
+                                            />
+                                            <datalist id="tiendas-user-list">
+                                                {listaTiendas.map(t => <option key={t.cr} value={t.cr}>{t.nombre}</option>)}
+                                            </datalist>
                                         </div>
                                     )}
                                     <div style={{display: 'flex', gap: '1rem'}}><button className="btn btn-primary" type="submit">Guardar</button><button className="btn btn-secondary" type="button" onClick={() => setShowUserModal(false)}>Cancelar</button></div>
