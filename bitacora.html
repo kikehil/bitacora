@@ -72,8 +72,22 @@
 
             useEffect(() => {
                 const session = localStorage.getItem('oxxo-session');
-                if (session) { setCurrentUser(JSON.parse(session)); setIsLoggedIn(true); }
+                if (session) { 
+                    const user = JSON.parse(session);
+                    setCurrentUser(user); 
+                    setIsLoggedIn(true); 
+                }
             }, []);
+
+            useEffect(() => {
+                if (isLoggedIn && currentUser) {
+                    console.log("Cargando datos para:", currentUser.usuario, currentUser.rol);
+                    loadRecords(); 
+                    if (currentUser.rol !== 'ayudante') loadUsuarios();
+                    if (currentUser.rol === 'admin') loadTiendasAdmin();
+                    loadListasAutocompletado(currentUser);
+                }
+            }, [isLoggedIn, currentUser]);
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
@@ -91,8 +105,10 @@
             const loadTiendasAdmin = async () => {
                 try {
                     const res = await fetch(`${API_URL}/tiendas_admin`);
-                    setTiendasAdmin(await res.json());
-                } catch (e) { console.error(e); }
+                    const data = await res.json();
+                    console.log("Tiendas Admin cargadas:", data);
+                    setTiendasAdmin(data);
+                } catch (e) { console.error("Error cargando tiendas admin:", e); }
             };
 
             const handleAddTienda = async (e) => {
@@ -144,8 +160,9 @@
                 try {
                     const res = await fetch(`${API_URL}/usuarios?admin_id=${currentUser.id}&rol=${currentUser.rol}&cr=${currentUser.cr}`);
                     const data = await res.json();
+                    console.log("Usuarios cargados:", data);
                     setUsuarios(data);
-                } catch (e) { console.error(e); }
+                } catch (e) { console.error("Error cargando usuarios:", e); }
             };
 
             const handleLogin = async (e) => {
