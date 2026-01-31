@@ -120,12 +120,15 @@
                 }
             };
 
-            const loadListasAutocompletado = async () => {
+            const loadListasAutocompletado = async (user = currentUser) => {
+                if (!user) return;
                 try {
-                    const resT = await fetch(`${API_URL}/tiendas?usuario_id=${currentUser.id}&rol=${currentUser.rol}`);
-                    setListaTiendas(await resT.json());
+                    const resT = await fetch(`${API_URL}/tiendas?usuario_id=${user.id}&rol=${user.rol}`);
+                    const tiendas = await resT.json();
+                    setListaTiendas(tiendas);
+                    console.log("Tiendas cargadas:", tiendas);
                     
-                    const resC = await fetch(`${API_URL}/colaboradores?usuario_id=${currentUser.id}&rol=${currentUser.rol}&cr=${currentUser.cr}`);
+                    const resC = await fetch(`${API_URL}/colaboradores?usuario_id=${user.id}&rol=${user.rol}&cr=${user.cr}`);
                     setListaColaboradores(await resC.json());
                 } catch (e) { console.error(e); }
             };
@@ -140,7 +143,8 @@
             const loadUsuarios = async () => {
                 try {
                     const res = await fetch(`${API_URL}/usuarios?admin_id=${currentUser.id}&rol=${currentUser.rol}&cr=${currentUser.cr}`);
-                    setUsuarios(await res.json());
+                    const data = await res.json();
+                    setUsuarios(data);
                 } catch (e) { console.error(e); }
             };
 
@@ -156,7 +160,10 @@
                     if (data.success) {
                         const user = { ...data.user, cr: data.user.cr_defecto, loginTime: new Date().toISOString() };
                         localStorage.setItem('oxxo-session', JSON.stringify(user));
-                        setCurrentUser(user); setIsLoggedIn(true);
+                        setCurrentUser(user); 
+                        setIsLoggedIn(true);
+                        // Forzar recarga de listas inmediatamente con el nuevo usuario
+                        loadListasAutocompletado(user);
                     } else alert('Error de acceso: ' + (data.message || 'Credenciales inválidas'));
                 } catch (err) { alert('Error de conexión con el servidor'); }
             };
