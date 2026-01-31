@@ -76,13 +76,17 @@
             }, []);
 
             useEffect(() => {
-                if (isLoggedIn) { 
-                    loadRecords(); 
-                    if (currentUser.rol !== 'ayudante') loadUsuarios();
-                    if (currentUser.rol === 'admin') loadTiendasAdmin();
-                    loadListasAutocompletado();
-                }
-            }, [isLoggedIn]);
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Escape') {
+                        setShowConfirmModal(false);
+                        setShowUserModal(false);
+                        setShowTiendaModal(false);
+                        setShowPhotoModal({ show: false, src: '' });
+                    }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, []);
 
             const loadTiendasAdmin = async () => {
                 try {
@@ -386,8 +390,8 @@
                     )}
 
                     {showConfirmModal && (
-                        <div className="modal-overlay">
-                            <div className="modal">
+                        <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
                                 <h3 style={{marginBottom: '1.5rem', borderBottom: '2px solid #06B6D4', paddingBottom: '0.5rem'}}>Confirmar Nuevo Retiro</h3>
                                 <form onSubmit={handleConfirm}>
                                     <div className="form-group"><label className="form-label">Número de Retiro</label><input className="form-input" value={formData.numeroRetiro} onChange={e => setFormData({...formData, numeroRetiro: e.target.value})} required /></div>
@@ -439,8 +443,8 @@
                     )}
 
                     {showTiendaModal && (
-                        <div className="modal-overlay">
-                            <div className="modal">
+                        <div className="modal-overlay" onClick={() => setShowTiendaModal(false)}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
                                 <h2>{tiendaForm.id ? 'Editar Tienda' : 'Nueva Tienda'}</h2>
                                 <form onSubmit={handleAddTienda}>
                                     <div className="form-group"><label className="form-label">CR</label><input className="form-input" value={tiendaForm.cr} onChange={e => setTiendaForm({...tiendaForm, cr: e.target.value})} required placeholder="Ej: CR-12345" /></div>
@@ -452,8 +456,9 @@
                         </div>
                     )}
 
-                        <div className="modal-overlay">
-                            <div className="modal">
+                    {showUserModal && (
+                        <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
                                 <h2>{userForm.id ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
                                 <form onSubmit={handleAddUser}>
                                     <div className="form-group"><label className="form-label">Nombre</label><input className="form-input" value={userForm.nombre} onChange={e => setUserForm({...userForm, nombre: e.target.value})} required /></div>
