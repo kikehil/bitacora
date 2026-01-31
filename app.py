@@ -53,6 +53,11 @@ class Retiro(db.Model):
     hora = db.Column(db.String(5), nullable=False)
     fecha_hora_registro = db.Column(db.String(30), nullable=False)
 
+# --- RUTAS DE FRONTEND ---
+@app.route('/')
+def index():
+    return send_file('bitacora.html')
+
 # --- RUTAS DE LOGIN ---
 @app.route('/api/login', methods=['POST'])
 def login():
