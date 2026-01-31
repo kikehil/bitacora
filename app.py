@@ -112,6 +112,8 @@ def get_usuarios():
         tiendas_ids = [t.tienda_id for t in AsesorTienda.query.filter_by(usuario_id=admin_id).all()]
         usuarios_ids = [rel.usuario_id for rel in AsesorTienda.query.filter(AsesorTienda.tienda_id.in_(tiendas_ids)).all()]
         usuarios = Usuario.query.filter(Usuario.id.in_(usuarios_ids)).all()
+        # Excluir al propio asesor de la lista si se desea, o dejarlo
+        usuarios = [u for u in usuarios if u.id != int(admin_id)]
     elif rol_solicitante == 'lider':
         # Ver solo colaboradores de su tienda
         tienda = Tienda.query.filter_by(cr=cr_solicitante).first()

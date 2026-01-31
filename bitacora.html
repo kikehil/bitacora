@@ -159,11 +159,18 @@
 
             const handleAddUser = async (e) => {
                 e.preventDefault();
+                const payload = { 
+                    ...userForm, 
+                    creador_rol: currentUser.rol, 
+                    creador_cr: userForm.tienda_cr || currentUser.cr 
+                };
                 await fetch(`${API_URL}/usuarios`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...userForm, creador_rol: currentUser.rol, creador_cr: currentUser.cr })
+                    body: JSON.stringify(payload)
                 });
-                setShowUserModal(false); loadUsuarios();
+                setShowUserModal(false); 
+                setUserForm({ nombre: '', usuario: '', password: '', rol: '', tienda_cr: '' });
+                loadUsuarios();
                 showToastMsg('Usuario agregado correctamente');
             };
 
@@ -438,12 +445,22 @@
                                     <div className="form-group"><label className="form-label">Password</label><input className="form-input" type="password" onChange={e => setUserForm({...userForm, password: e.target.value})} required /></div>
                                     <div className="form-group">
                                         <label className="form-label">Rol</label>
-                                        <select className="form-input" onChange={e => setUserForm({...userForm, rol: e.target.value})}>
+                                        <select className="form-input" value={userForm.rol} onChange={e => setUserForm({...userForm, rol: e.target.value})}>
+                                            <option value="">Seleccionar Rol...</option>
                                             {currentUser.rol === 'admin' && <><option value="admin">Admin</option><option value="asesor">Asesor</option><option value="lider">Lider</option></>}
                                             {currentUser.rol === 'asesor' && <><option value="lider">Lider</option><option value="encargado">Encargado</option><option value="ayudante">Ayudante</option><option value="cajero">Cajero</option></>}
                                             {currentUser.rol === 'lider' && <><option value="encargado">Encargado</option><option value="ayudante">Ayudante</option><option value="cajero">Cajero</option></>}
                                         </select>
                                     </div>
+                                    {((currentUser.rol === 'asesor' || currentUser.rol === 'admin') && ['lider', 'encargado', 'ayudante', 'cajero'].includes(userForm.rol)) && (
+                                        <div className="form-group">
+                                            <label className="form-label">Asignar a Tienda</label>
+                                            <select className="form-input" value={userForm.tienda_cr} onChange={e => setUserForm({...userForm, tienda_cr: e.target.value})} required>
+                                                <option value="">Seleccionar Tienda...</option>
+                                                {listaTiendas.map(t => <option key={t.cr} value={t.cr}>{t.cr} - {t.nombre}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                     <div style={{display: 'flex', gap: '1rem'}}><button className="btn btn-primary" type="submit">Guardar</button><button className="btn btn-secondary" type="button" onClick={() => setShowUserModal(false)}>Cancelar</button></div>
                                 </form>
                             </div>
