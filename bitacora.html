@@ -161,6 +161,7 @@
                 e.preventDefault();
                 const payload = { 
                     ...userForm, 
+                    creador_id: currentUser.id,
                     creador_rol: currentUser.rol, 
                     creador_cr: userForm.tienda_cr || currentUser.cr 
                 };

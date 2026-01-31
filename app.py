@@ -127,9 +127,11 @@ def get_usuarios():
         usuarios = [u for u in usuarios if u.id != int(admin_id)]
     elif rol_solicitante == 'lider':
         # Ver solo colaboradores de su tienda
-        tienda = Tienda.query.filter_by(cr=cr_solicitante).first()
-        if tienda:
-            usuarios_ids = [rel.usuario_id for rel in AsesorTienda.query.filter_by(tienda_id=tienda.id).all()]
+        # 1. Obtener la tienda del lider desde AsesorTienda
+        rel = AsesorTienda.query.filter_by(usuario_id=admin_id).first()
+        if rel:
+            tienda_id = rel.tienda_id
+            usuarios_ids = [r.usuario_id for r in AsesorTienda.query.filter_by(tienda_id=tienda_id).all()]
             usuarios = Usuario.query.filter(Usuario.id.in_(usuarios_ids), Usuario.rol.in_(['encargado', 'ayudante', 'cajero'])).all()
         else:
             usuarios = []
@@ -161,7 +163,12 @@ def add_usuario():
     db.session.flush() # Para obtener el ID
 
     # Si es lider, asignar automáticamente a su tienda
-    if rol_creador == 'lider' or cr_creador:
+    if rol_creador == 'lider':
+        rel_lider = AsesorTienda.query.filter_by(usuario_id=data.get('creador_id')).first()
+        if rel_lider:
+            rel = AsesorTienda(usuario_id=nuevo_usuario.id, tienda_id=rel_lider.tienda_id)
+            db.session.add(rel)
+    elif cr_creador:
         tienda = Tienda.query.filter_by(cr=cr_creador).first()
         if tienda:
             rel = AsesorTienda(usuario_id=nuevo_usuario.id, tienda_id=tienda.id)
