@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OXXO - Bitácora de Retiros Parciales</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #06B6D4; --dark: #0F172A; --gray: #64748B; --light: #F8FAFC;
+            --oxxo-red: #ED1C24; --oxxo-yellow: #FFCC00;
+            --oxxo-border: #e2e8f0; --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--light); color: var(--dark); }
+        .app-container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at top left, var(--dark) 0%, #020617 100%); }
+        .login-box { background: white; border-radius: 16px; padding: 3rem; width: 100%; max-width: 420px; box-shadow: var(--shadow-lg); }
+        .header { background: var(--dark); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); }
+        .stats-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: white; border-radius: 12px; padding: 1.5rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid var(--primary); }
+        .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary); }
+        .stat-label { font-size: 0.75rem; text-transform: uppercase; color: var(--gray); font-weight: 600; }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-label { display: block; margin-bottom: 0.5rem; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; color: var(--gray); }
+        .form-input { width: 100%; padding: 0.875rem; border: 2px solid var(--oxxo-border); border-radius: 8px; font-size: 1rem; }
+        .form-input:focus { outline: none; border-color: var(--primary); }
+        .btn { padding: 0.8rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: 0.3s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: white; color: var(--dark); border: 1px solid var(--oxxo-border); }
+        .btn-danger { background: #ef4444; color: white; }
+        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+        .record-item { background: white; border: 1px solid var(--oxxo-border); border-left: 4px solid var(--primary); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .modal { background: white; border-radius: 16px; padding: 2rem; width: 90%; max-width: 500px; }
+        .nav-tabs { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--oxxo-border); }
+        .nav-tab { padding: 0.75rem 1.5rem; cursor: pointer; border-bottom: 2px solid transparent; }
+        .nav-tab.active { border-color: var(--primary); color: var(--primary); font-weight: 700; }
+        .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--dark); color: white; padding: 1rem 2rem; border-radius: 12px; box-shadow: var(--shadow-lg); border-left: 4px solid var(--primary); z-index: 3000; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_URL = 'http://localhost:5000/api';
+
+        function App() {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [currentUser, setCurrentUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('retiros');
+            const [records, setRecords] = useState([]);
+            const [users, setUsuarios] = useState([]);
+            const [tiendasAdmin, setTiendasAdmin] = useState([]);
+            const [showConfirmModal, setShowConfirmModal] = useState(false);
+            const [showUserModal, setShowUserModal] = useState(false);
+            const [showTiendaModal, setShowTiendaModal] = useState(false);
+            const [formData, setFormData] = useState({ numeroRetiro: '', monto: '', confirmaUsuario: '', confirmaPassword: '' });
+            const [userForm, setUserForm] = useState({ usuario: '', nombre: '', password: '', rol: 'ayudante' });
+            const [tiendaForm, setTiendaForm] = useState({ id: null, cr: '', nombre: '', distrito: '' });
+            const [filters, setFilters] = useState({ fecha: '', colaborador: '', tienda: '', confirmador: '' });
+            const [showToast, setShowToast] = useState({ show: false, message: '' });
+            
+            // Listas para autocompletado
+            const [listaTiendas, setListaTiendas] = useState([]);
+            const [listaColaboradores, setListaColaboradores] = useState([]);
+
+            useEffect(() => {
+                const session = localStorage.getItem('oxxo-session');
+                if (session) { setCurrentUser(JSON.parse(session)); setIsLoggedIn(true); }
+            }, []);
+
+            useEffect(() => {
+                if (isLoggedIn) { 
+                    loadRecords(); 
+                    if (currentUser.rol !== 'ayudante') loadUsuarios();
+                    if (currentUser.rol === 'admin') loadTiendasAdmin();
+                    loadListasAutocompletado();
+                }
+            }, [isLoggedIn]);
+
+            const loadTiendasAdmin = async () => {
+                try {
+                    const res = await fetch(`${API_URL}/tiendas_admin`);
+                    setTiendasAdmin(await res.json());
+                } catch (e) { console.error(e); }
+            };
+
+            const handleAddTienda = async (e) => {
+                e.preventDefault();
+                const method = tiendaForm.id ? 'PUT' : 'POST';
+                const url = tiendaForm.id ? `${API_URL}/tiendas_admin/${tiendaForm.id}` : `${API_URL}/tiendas_admin`;
+                
+                await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(tiendaForm)
+                });
+                setShowTiendaModal(false);
+                loadTiendasAdmin();
+                loadListasAutocompletado();
+                showToastMsg(tiendaForm.id ? 'Tienda actualizada' : 'Tienda agregada');
+            };
+
+            const deleteTienda = async (id) => {
+                if (confirm('¿Eliminar tienda? Se perderán las relaciones con asesores.')) {
+                    await fetch(`${API_URL}/tiendas_admin/${id}`, { method: 'DELETE' });
+                    loadTiendasAdmin();
+                    loadListasAutocompletado();
+                    showToastMsg('Tienda eliminada');
+                }
+            };
+
+            const loadListasAutocompletado = async () => {
+                try {
+                    const resT = await fetch(`${API_URL}/tiendas?usuario_id=${currentUser.id}&rol=${currentUser.rol}`);
+                    setListaTiendas(await resT.json());
+                    
+                    const resC = await fetch(`${API_URL}/colaboradores?usuario_id=${currentUser.id}&rol=${currentUser.rol}&cr=${currentUser.cr}`);
+                    setListaColaboradores(await resC.json());
+                } catch (e) { console.error(e); }
+            };
+
+            const loadRecords = async () => {
+                try {
+                    const res = await fetch(`${API_URL}/retiros?usuario_id=${currentUser.id}&rol=${currentUser.rol}&cr=${currentUser.cr}&usuario_nombre=${currentUser.usuario}`);
+                    setRecords(await res.json());
+                } catch (e) { console.error(e); }
+            };
+
+            const loadUsuarios = async () => {
+                try {
+                    const res = await fetch(`${API_URL}/usuarios?admin_id=${currentUser.id}&rol=${currentUser.rol}&cr=${currentUser.cr}`);
+                    setUsuarios(await res.json());
+                } catch (e) { console.error(e); }
+            };
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                try {
+                    const res = await fetch(`${API_URL}/login`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(Object.fromEntries(fd))
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        const user = { ...data.user, cr: data.user.cr_defecto, loginTime: new Date().toISOString() };
+                        localStorage.setItem('oxxo-session', JSON.stringify(user));
+                        setCurrentUser(user); setIsLoggedIn(true);
+                    } else alert('Error de acceso: ' + (data.message || 'Credenciales inválidas'));
+                } catch (err) { alert('Error de conexión con el servidor'); }
+            };
+
+            const handleAddUser = async (e) => {
+                e.preventDefault();
+                await fetch(`${API_URL}/usuarios`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...userForm, creador_rol: currentUser.rol, creador_cr: currentUser.cr })
+                });
+                setShowUserModal(false); loadUsuarios();
+                showToastMsg('Usuario agregado correctamente');
+            };
+
+            const deleteUser = async (id) => {
+                if (confirm('¿Eliminar usuario?')) {
+                    await fetch(`${API_URL}/usuarios/${id}`, { method: 'DELETE' });
+                    loadUsuarios();
+                    showToastMsg('Usuario eliminado');
+                }
+            };
+
+            const handleConfirm = async (e) => {
+                e.preventDefault();
+                const payload = {
+                    ...formData,
+                    tienda: currentUser.rol === 'admin' ? 'ADMIN' : currentUser.cr,
+                    usuario_registro: currentUser.usuario,
+                    rol: currentUser.rol
+                };
+                const res = await fetch(`${API_URL}/retiros`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setShowConfirmModal(false); loadRecords();
+                    setFormData({ numeroRetiro: '', monto: '', confirmaUsuario: '', confirmaPassword: '' });
+                    showToastMsg('Retiro registrado exitosamente');
+                } else alert(data.message);
+            };
+
+            const exportData = async (type) => {
+                const res = await fetch(`${API_URL}/export/${type}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(records)
+                });
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url;
+                a.download = `reporte.${type === 'excel' ? 'xlsx' : 'pdf'}`;
+                a.click();
+            };
+
+            const [showPhotoModal, setShowPhotoModal] = useState({ show: false, src: '' });
+
+        const showToastMsg = (msg) => {
+                setShowToast({ show: true, message: msg });
+                setTimeout(() => setShowToast({ show: false, message: '' }), 3000);
+            };
+
+            if (!isLoggedIn) return (
+                <div className="login-container">
+                    <div className="login-box">
+                        <h1 style={{textAlign: 'center', color: '#06B6D4', marginBottom: '2rem'}}>OXXO</h1>
+                        <form onSubmit={handleLogin}>
+                            <div className="form-group"><label className="form-label">Usuario</label><input name="usuario" className="form-input" required /></div>
+                            <div className="form-group"><label className="form-label">Contraseña</label><input name="password" type="password" className="form-input" required /></div>
+                            <button className="btn btn-primary" style={{width: '100%'}}>Entrar</button>
+                        </form>
+                    </div>
+                </div>
+            );
+
+            const filteredRecords = records.filter(r => {
+                if (filters.fecha && r.fecha !== filters.fecha) return false;
+                if (filters.colaborador && !r.colaborador.toLowerCase().includes(filters.colaborador.toLowerCase())) return false;
+                if (filters.tienda && !r.tienda.toLowerCase().includes(filters.tienda.toLowerCase())) return false;
+                if (filters.confirmador && !r.confirmaUsuario.toLowerCase().includes(filters.confirmador.toLowerCase())) return false;
+                return true;
+            });
+
+            const totalMonto = filteredRecords.reduce((sum, r) => sum + parseFloat(r.monto || 0), 0);
+
+            return (
+                <div className="app-container">
+                    <div className="header">
+                        <div><h1>OXXO</h1><p>Bitácora Digital</p></div>
+                        <div style={{textAlign: 'right'}}>
+                            <p><b>{currentUser.nombre}</b> ({currentUser.rol})</p>
+                            <button className="btn btn-secondary" style={{marginTop: '0.5rem', padding: '0.4rem 1rem', fontSize: '0.7rem'}} onClick={() => { localStorage.clear(); location.reload(); }}>Salir</button>
+                        </div>
+                    </div>
+
+                    <div className="nav-tabs">
+                        <div className={`nav-tab ${activeTab === 'retiros' ? 'active' : ''}`} onClick={() => setActiveTab('retiros')}>Retiros</div>
+                        {currentUser.rol !== 'ayudante' && <div className={`nav-tab ${activeTab === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveTab('usuarios')}>Gestión Usuarios</div>}
+                        {currentUser.rol === 'admin' && <div className={`nav-tab ${activeTab === 'tiendas_admin' ? 'active' : ''}`} onClick={() => setActiveTab('tiendas_admin')}>Gestión Tiendas</div>}
+                    </div>
+
+                    {activeTab === 'retiros' && (
+                        <>
+                            <div className="stats-summary">
+                                <div className="stat-card"><div className="stat-value">{filteredRecords.length}</div><div className="stat-label">Retiros Filtrados</div></div>
+                                <div className="stat-card"><div className="stat-value">${totalMonto.toLocaleString()}</div><div className="stat-label">Monto Total</div></div>
+                                <div className="stat-card"><div className="stat-value" style={{fontSize: '1.2rem'}}>{currentUser.rol.toUpperCase()}</div><div className="stat-label">Tu Rol</div></div>
+                            </div>
+
+                    {['lider', 'encargado', 'ayudante', 'cajero'].includes(currentUser.rol) && (
+                        <div className="card" style={{marginBottom: '2rem', borderLeft: '4px solid #FFCC00'}}>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                <div>
+                                    <h3 style={{color: 'var(--dark)'}}>💰 Registro de Retiro</h3>
+                                    <p style={{fontSize: '0.85rem', color: 'var(--gray)'}}>Inicia un nuevo proceso de retiro para la tienda <b>{currentUser.cr}</b></p>
+                                </div>
+                                <button className="btn btn-primary" onClick={() => setShowConfirmModal(true)}>+ Nuevo Retiro</button>
+                            </div>
+                        </div>
+                    )}
+
+                            <div className="card" style={{marginBottom: '2rem'}}>
+                                <h3 style={{marginBottom: '1.5rem', color: '#06B6D4'}}>🔍 Filtros y Reportes</h3>
+                                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'end'}}>
+                                    <div className="form-group" style={{margin: 0}}><label className="form-label">Fecha</label><input type="date" className="form-input" value={filters.fecha} onChange={e => setFilters({...filters, fecha: e.target.value})} /></div>
+                                    {(currentUser.rol === 'admin' || currentUser.rol === 'asesor') && (
+                                        <div className="form-group" style={{margin: 0}}>
+                                            <label className="form-label">Tienda (CR / Nombre)</label>
+                                            <input list="tiendas-list" className="form-input" placeholder="Buscar tienda..." value={filters.tienda} onChange={e => setFilters({...filters, tienda: e.target.value})} />
+                                            <datalist id="tiendas-list">
+                                                {listaTiendas.map(t => <option key={t.cr} value={t.cr}>{t.nombre}</option>)}
+                                            </datalist>
+                                        </div>
+                                    )}
+                                    <div className="form-group" style={{margin: 0}}>
+                                        <label className="form-label">Colaborador</label>
+                                        <input list="colab-list" className="form-input" placeholder="Buscar colaborador..." value={filters.colaborador} onChange={e => setFilters({...filters, colaborador: e.target.value})} />
+                                        <datalist id="colab-list">
+                                            {listaColaboradores.map(c => <option key={c.usuario} value={c.usuario}>{c.nombre}</option>)}
+                                        </datalist>
+                                    </div>
+                                    <div className="form-group" style={{margin: 0}}>
+                                        <label className="form-label">Confirmador</label>
+                                        <input list="confirma-list" className="form-input" placeholder="Buscar confirmador..." value={filters.confirmador} onChange={e => setFilters({...filters, confirmador: e.target.value})} />
+                                        <datalist id="confirma-list">
+                                            {listaColaboradores.map(c => <option key={c.usuario} value={c.usuario}>{c.nombre}</option>)}
+                                        </datalist>
+                                    </div>
+                                    <button className="btn btn-secondary" onClick={() => setFilters({fecha: '', colaborador: '', tienda: '', confirmador: ''})}>Limpiar</button>
+                                </div>
+                                <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem'}}>
+                                    <button className="btn btn-secondary" onClick={() => exportData('excel')}>📊 Exportar Excel</button>
+                                    <button className="btn btn-secondary" onClick={() => exportData('pdf')}>📄 Exportar PDF</button>
+                                    {['lider', 'encargado', 'ayudante', 'cajero'].includes(currentUser.rol) && <button className="btn btn-primary" style={{marginLeft: 'auto'}} onClick={() => setShowConfirmModal(true)}>+ Nuevo Retiro</button>}
+                                </div>
+                            </div>
+
+                            <div className="record-list">
+                                {filteredRecords.map(r => (
+                                    <div key={r.id} className="record-item">
+                                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start'}}>
+                                            <div>
+                                                <h3 style={{color: '#06B6D4', fontSize: '1.5rem'}}>${parseFloat(r.monto).toLocaleString()}</h3>
+                                                <p style={{fontSize: '0.85rem', color: '#64748B'}}>{r.fecha} {r.hora} | Tienda: <b>{r.tienda}</b></p>
+                                            </div>
+                                            <div style={{textAlign: 'right', fontSize: '0.85rem'}}>
+                                                <p>Colab: <b>{r.colaborador}</b></p>
+                                                <p>Confirma: <b>{r.confirmaUsuario}</b></p>
+                                                {r.imagenFajilla && (
+                                                    <button 
+                                                        className="btn btn-secondary" 
+                                                        style={{padding: '0.2rem 0.5rem', fontSize: '0.7rem', marginTop: '0.5rem'}}
+                                                        onClick={() => setShowPhotoModal({ show: true, src: r.imagenFajilla })}
+                                                    >
+                                                        🖼️ Ver Foto
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    {activeTab === 'usuarios' && (
+                        <div className="card">
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                                <h3 style={{color: '#06B6D4'}}>👥 Gestión de Personal</h3>
+                                <button className="btn btn-primary" onClick={() => setShowUserModal(true)}>+ Agregar Usuario</button>
+                            </div>
+                            <div style={{overflowX: 'auto'}}>
+                                <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                                    <thead><tr style={{textAlign: 'left', borderBottom: '2px solid #e2e8f0'}}><th style={{padding: '1rem'}}>Nombre</th><th>Usuario</th><th>Rol</th><th>Acciones</th></tr></thead>
+                                    <tbody>
+                                        {users.map(u => (
+                                            <tr key={u.id} style={{borderBottom: '1px solid #e2e8f0'}}>
+                                                <td style={{padding: '1rem'}}>{u.nombre}</td>
+                                                <td>{u.usuario}</td>
+                                                <td><span style={{padding: '0.25rem 0.75rem', borderRadius: '20px', background: '#F8FAFC', fontSize: '0.75rem', fontWeight: '700'}}>{u.rol.toUpperCase()}</span></td>
+                                                <td><button className="btn btn-danger" style={{padding: '0.4rem 0.8rem', fontSize: '0.7rem'}} onClick={() => deleteUser(u.id)}>Eliminar</button></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {showConfirmModal && (
+                        <div className="modal-overlay">
+                            <div className="modal">
+                                <h3 style={{marginBottom: '1.5rem', borderBottom: '2px solid #06B6D4', paddingBottom: '0.5rem'}}>Confirmar Nuevo Retiro</h3>
+                                <form onSubmit={handleConfirm}>
+                                    <div className="form-group"><label className="form-label">Número de Retiro</label><input className="form-input" value={formData.numeroRetiro} onChange={e => setFormData({...formData, numeroRetiro: e.target.value})} required /></div>
+                                    <div className="form-group"><label className="form-label">Monto ($)</label><input type="number" className="form-input" value={formData.monto} onChange={e => setFormData({...formData, monto: e.target.value})} required /></div>
+                                    <div style={{background: '#F8FAFC', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem'}}>
+                                        <p style={{fontSize: '0.8rem', fontWeight: '700', marginBottom: '1rem', color: '#64748B'}}>VALIDACIÓN DE SEGUNDO COLABORADOR</p>
+                                        <div className="form-group">
+                                            <label className="form-label">Usuario Confirmador</label>
+                                            <input list="confirma-modal-list" className="form-input" value={formData.confirmaUsuario} onChange={e => setFormData({...formData, confirmaUsuario: e.target.value})} required />
+                                            <datalist id="confirma-modal-list">
+                                                {listaColaboradores.map(c => <option key={c.usuario} value={c.usuario}>{c.nombre}</option>)}
+                                            </datalist>
+                                        </div>
+                                        <div className="form-group" style={{margin: 0}}><label className="form-label">Contraseña</label><input type="password" name="confirmaPassword" className="form-input" value={formData.confirmaPassword} onChange={e => setFormData({...formData, confirmaPassword: e.target.value})} required /></div>
+                                    </div>
+                                    <div style={{display: 'flex', gap: '1rem'}}><button type="button" className="btn btn-secondary" style={{flex: 1}} onClick={() => setShowConfirmModal(false)}>Cancelar</button><button type="submit" className="btn btn-primary" style={{flex: 1}}>Guardar Retiro</button></div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'tiendas_admin' && (
+                        <div className="card">
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                                <h3 style={{color: '#06B6D4'}}>🏪 Administración de Tiendas</h3>
+                                <button className="btn btn-primary" onClick={() => { setTiendaForm({id: null, cr: '', nombre: '', distrito: ''}); setShowTiendaModal(true); }}>+ Agregar Tienda</button>
+                            </div>
+                            <div style={{overflowX: 'auto'}}>
+                                <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                                    <thead><tr style={{textAlign: 'left', borderBottom: '2px solid #e2e8f0'}}><th style={{padding: '1rem'}}>CR</th><th>Nombre</th><th>Distrito</th><th>Acciones</th></tr></thead>
+                                    <tbody>
+                                        {tiendasAdmin.map(t => (
+                                            <tr key={t.id} style={{borderBottom: '1px solid #e2e8f0'}}>
+                                                <td style={{padding: '1rem'}}><b>{t.cr}</b></td>
+                                                <td>{t.nombre}</td>
+                                                <td>{t.distrito || '-'}</td>
+                                                <td>
+                                                    <div style={{display: 'flex', gap: '0.5rem'}}>
+                                                        <button className="btn btn-secondary" style={{padding: '0.4rem 0.8rem', fontSize: '0.7rem'}} onClick={() => { setTiendaForm(t); setShowTiendaModal(true); }}>Editar</button>
+                                                        <button className="btn btn-danger" style={{padding: '0.4rem 0.8rem', fontSize: '0.7rem'}} onClick={() => deleteTienda(t.id)}>Eliminar</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {showTiendaModal && (
+                        <div className="modal-overlay">
+                            <div className="modal">
+                                <h2>{tiendaForm.id ? 'Editar Tienda' : 'Nueva Tienda'}</h2>
+                                <form onSubmit={handleAddTienda}>
+                                    <div className="form-group"><label className="form-label">CR</label><input className="form-input" value={tiendaForm.cr} onChange={e => setTiendaForm({...tiendaForm, cr: e.target.value})} required placeholder="Ej: CR-12345" /></div>
+                                    <div className="form-group"><label className="form-label">Nombre de Tienda</label><input className="form-input" value={tiendaForm.nombre} onChange={e => setTiendaForm({...tiendaForm, nombre: e.target.value})} required /></div>
+                                    <div className="form-group"><label className="form-label">Distrito</label><input className="form-input" value={tiendaForm.distrito} onChange={e => setTiendaForm({...tiendaForm, distrito: e.target.value})} /></div>
+                                    <div style={{display: 'flex', gap: '1rem'}}><button className="btn btn-primary" type="submit">Guardar</button><button className="btn btn-secondary" type="button" onClick={() => setShowTiendaModal(false)}>Cancelar</button></div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {showUserModal && (
+                        <div className="modal-overlay">
+                            <div className="modal">
+                                <h2>Nuevo Usuario</h2>
+                                <form onSubmit={handleAddUser}>
+                                    <div className="form-group"><label className="form-label">Nombre</label><input className="form-input" onChange={e => setUserForm({...userForm, nombre: e.target.value})} required /></div>
+                                    <div className="form-group"><label className="form-label">Usuario (Email)</label><input className="form-input" onChange={e => setUserForm({...userForm, usuario: e.target.value})} required /></div>
+                                    <div className="form-group"><label className="form-label">Password</label><input className="form-input" type="password" onChange={e => setUserForm({...userForm, password: e.target.value})} required /></div>
+                                    <div className="form-group">
+                                        <label className="form-label">Rol</label>
+                                        <select className="form-input" onChange={e => setUserForm({...userForm, rol: e.target.value})}>
+                                            {currentUser.rol === 'admin' && <><option value="admin">Admin</option><option value="asesor">Asesor</option><option value="lider">Lider</option></>}
+                                            {currentUser.rol === 'asesor' && <><option value="lider">Lider</option><option value="encargado">Encargado</option><option value="ayudante">Ayudante</option><option value="cajero">Cajero</option></>}
+                                            {currentUser.rol === 'lider' && <><option value="encargado">Encargado</option><option value="ayudante">Ayudante</option><option value="cajero">Cajero</option></>}
+                                        </select>
+                                    </div>
+                                    <div style={{display: 'flex', gap: '1rem'}}><button className="btn btn-primary" type="submit">Guardar</button><button className="btn btn-secondary" type="button" onClick={() => setShowUserModal(false)}>Cancelar</button></div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {showPhotoModal.show && (
+                        <div className="modal-overlay" onClick={() => setShowPhotoModal({ show: false, src: '' })}>
+                            <div className="modal" style={{maxWidth: '90%', textAlign: 'center'}} onClick={e => e.stopPropagation()}>
+                                <h3 style={{marginBottom: '1rem'}}>Evidencia de Retiro</h3>
+                                <img src={showPhotoModal.src} style={{maxWidth: '100%', borderRadius: '8px'}} alt="Fajilla" />
+                                <button className="btn btn-primary" style={{marginTop: '1rem', width: '100%'}} onClick={() => setShowPhotoModal({ show: false, src: '' })}>Cerrar</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {showToast.show && <div className="toast">{showToast.message}</div>}
+                </div>
+            );
+        }
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
