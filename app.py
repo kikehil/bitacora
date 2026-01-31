@@ -177,6 +177,33 @@ def add_usuario():
     db.session.commit()
     return jsonify({'success': True})
 
+@app.route('/api/usuarios/<int:id>', methods=['PUT'])
+def update_usuario(id):
+    data = request.json
+    u = Usuario.query.get(id)
+    if u:
+        u.nombre = data.get('nombre', u.nombre)
+        u.usuario = data.get('usuario', u.usuario)
+        if data.get('password'):
+            u.password = data.get('password')
+        u.rol = data.get('rol', u.rol).lower()
+        
+        # Si se cambió la tienda (solo para asesores/admin)
+        nueva_tienda_cr = data.get('tienda_cr')
+        if nueva_tienda_cr:
+            tienda = Tienda.query.filter_by(cr=nueva_tienda_cr).first()
+            if tienda:
+                rel = AsesorTienda.query.filter_by(usuario_id=id).first()
+                if rel:
+                    rel.tienda_id = tienda.id
+                else:
+                    nueva_rel = AsesorTienda(usuario_id=id, tienda_id=tienda.id)
+                    db.session.add(nueva_rel)
+        
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
+
 @app.route('/api/usuarios/<int:id>', methods=['DELETE'])
 def delete_usuario(id):
     u = Usuario.query.get(id)

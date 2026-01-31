@@ -159,20 +159,26 @@
 
             const handleAddUser = async (e) => {
                 e.preventDefault();
+                const method = userForm.id ? 'PUT' : 'POST';
+                const url = userForm.id ? `${API_URL}/usuarios/${userForm.id}` : `${API_URL}/usuarios`;
+                
                 const payload = { 
                     ...userForm, 
                     creador_id: currentUser.id,
                     creador_rol: currentUser.rol, 
                     creador_cr: userForm.tienda_cr || currentUser.cr 
                 };
-                await fetch(`${API_URL}/usuarios`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+
+                await fetch(url, {
+                    method: method, 
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                
                 setShowUserModal(false); 
-                setUserForm({ nombre: '', usuario: '', password: '', rol: '', tienda_cr: '' });
+                setUserForm({ id: null, nombre: '', usuario: '', password: '', rol: '', tienda_cr: '' });
                 loadUsuarios();
-                showToastMsg('Usuario agregado correctamente');
+                showToastMsg(userForm.id ? 'Usuario actualizado' : 'Usuario agregado correctamente');
             };
 
             const deleteUser = async (id) => {
@@ -365,7 +371,12 @@
                                                 <td style={{padding: '1rem'}}>{u.nombre}</td>
                                                 <td>{u.usuario}</td>
                                                 <td><span style={{padding: '0.25rem 0.75rem', borderRadius: '20px', background: '#F8FAFC', fontSize: '0.75rem', fontWeight: '700'}}>{u.rol.toUpperCase()}</span></td>
-                                                <td><button className="btn btn-danger" style={{padding: '0.4rem 0.8rem', fontSize: '0.7rem'}} onClick={() => deleteUser(u.id)}>Eliminar</button></td>
+                                                <td>
+                                                    <div style={{display: 'flex', gap: '0.5rem'}}>
+                                                        <button className="btn btn-secondary" style={{padding: '0.4rem 0.8rem', fontSize: '0.7rem'}} onClick={() => { setUserForm({...u, password: ''}); setShowUserModal(true); }}>Editar</button>
+                                                        <button className="btn btn-danger" style={{padding: '0.4rem 0.8rem', fontSize: '0.7rem'}} onClick={() => deleteUser(u.id)}>Eliminar</button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -441,14 +452,16 @@
                         </div>
                     )}
 
-                    {showUserModal && (
                         <div className="modal-overlay">
                             <div className="modal">
-                                <h2>Nuevo Usuario</h2>
+                                <h2>{userForm.id ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
                                 <form onSubmit={handleAddUser}>
-                                    <div className="form-group"><label className="form-label">Nombre</label><input className="form-input" onChange={e => setUserForm({...userForm, nombre: e.target.value})} required /></div>
-                                    <div className="form-group"><label className="form-label">Usuario (Email)</label><input className="form-input" onChange={e => setUserForm({...userForm, usuario: e.target.value})} required /></div>
-                                    <div className="form-group"><label className="form-label">Password</label><input className="form-input" type="password" onChange={e => setUserForm({...userForm, password: e.target.value})} required /></div>
+                                    <div className="form-group"><label className="form-label">Nombre</label><input className="form-input" value={userForm.nombre} onChange={e => setUserForm({...userForm, nombre: e.target.value})} required /></div>
+                                    <div className="form-group"><label className="form-label">Usuario (Email)</label><input className="form-input" value={userForm.usuario} onChange={e => setUserForm({...userForm, usuario: e.target.value})} required /></div>
+                                    <div className="form-group">
+                                        <label className="form-label">{userForm.id ? 'Nueva Contraseña (dejar en blanco para no cambiar)' : 'Contraseña'}</label>
+                                        <input className="form-input" type="password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} required={!userForm.id} />
+                                    </div>
                                     <div className="form-group">
                                         <label className="form-label">Rol</label>
                                         <select className="form-input" value={userForm.rol} onChange={e => setUserForm({...userForm, rol: e.target.value})}>
