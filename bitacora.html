@@ -250,13 +250,18 @@
                         <div><h1>OXXO</h1><p>Bitácora Digital</p></div>
                         <div style={{textAlign: 'right'}}>
                             <p><b>{currentUser.nombre}</b> ({currentUser.rol})</p>
+                            {['lider', 'encargado', 'ayudante', 'cajero'].includes(currentUser.rol) && (
+                                <div style={{fontSize: '0.75rem', color: '#06B6D4', marginTop: '2px'}}>
+                                    Tienda: <b>{currentUser.cr}</b> | Asesor: <b>{currentUser.asesor_nombre || 'N/A'}</b>
+                                </div>
+                            )}
                             <button className="btn btn-secondary" style={{marginTop: '0.5rem', padding: '0.4rem 1rem', fontSize: '0.7rem'}} onClick={() => { localStorage.clear(); location.reload(); }}>Salir</button>
                         </div>
                     </div>
 
                     <div className="nav-tabs">
                         <div className={`nav-tab ${activeTab === 'retiros' ? 'active' : ''}`} onClick={() => setActiveTab('retiros')}>Retiros</div>
-                        {currentUser.rol !== 'ayudante' && <div className={`nav-tab ${activeTab === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveTab('usuarios')}>Gestión Usuarios</div>}
+                        {['admin', 'asesor', 'lider'].includes(currentUser.rol) && <div className={`nav-tab ${activeTab === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveTab('usuarios')}>Gestión Usuarios</div>}
                         {currentUser.rol === 'admin' && <div className={`nav-tab ${activeTab === 'tiendas_admin' ? 'active' : ''}`} onClick={() => setActiveTab('tiendas_admin')}>Gestión Tiendas</div>}
                     </div>
 

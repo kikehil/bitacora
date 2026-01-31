@@ -69,6 +69,8 @@ def login():
     
     if usuario and usuario.password == password_input:
         tiendas = []
+        asesor_nombre = "N/A"
+        
         # Obtener tiendas asignadas para asesores y admins
         if usuario.rol.lower() in ['asesor', 'admin']:
             tiendas_ids = AsesorTienda.query.filter_by(usuario_id=usuario.id).all()
@@ -77,12 +79,20 @@ def login():
                 if t:
                     tiendas.append({'cr': t.cr, 'nombre': t.nombre})
         elif usuario.rol.lower() in ['lider', 'encargado', 'ayudante', 'cajero']:
-            # Buscar tienda asignada (asumimos que está en asesor_tienda o similar)
+            # Buscar tienda asignada
             rel = AsesorTienda.query.filter_by(usuario_id=usuario.id).first()
             if rel:
                 t = Tienda.query.get(rel.tienda_id)
                 if t:
                     tiendas.append({'cr': t.cr, 'nombre': t.nombre})
+                    # Buscar quién es el asesor de esta tienda
+                    rel_asesor = AsesorTienda.query.join(Usuario).filter(
+                        AsesorTienda.tienda_id == t.id,
+                        Usuario.rol == 'asesor'
+                    ).first()
+                    if rel_asesor:
+                        asesor_obj = Usuario.query.get(rel_asesor.usuario_id)
+                        asesor_nombre = asesor_obj.nombre if asesor_obj else "N/A"
 
         return jsonify({
             'success': True,
@@ -92,7 +102,8 @@ def login():
                 'nombre': usuario.nombre,
                 'rol': usuario.rol.lower(),
                 'tiendas': tiendas,
-                'cr_defecto': tiendas[0]['cr'] if tiendas else 'SIN_CR'
+                'cr_defecto': tiendas[0]['cr'] if tiendas else 'SIN_CR',
+                'asesor_nombre': asesor_nombre
             }
         })
     
