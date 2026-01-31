@@ -58,6 +58,10 @@ class Retiro(db.Model):
 def index():
     return send_file('bitacora.html')
 
+@app.route('/logo.svg')
+def logo():
+    return send_file('logo.svg')
+
 # --- RUTAS DE LOGIN ---
 @app.route('/api/login', methods=['POST'])
 def login():
