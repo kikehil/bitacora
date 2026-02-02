@@ -1017,8 +1017,7 @@
                     return;
                         }
                 }
-
-                    if (!newUser.cr) {
+                    if (!newUser.cr && !['ADMIN', 'ASESOR'].includes(newUser.role)) {
                         setModal({ open: true, title: 'Datos incompletos', message: 'Debes seleccionar una tienda válida.' });
                     return;
                 }
@@ -1129,7 +1128,7 @@
                                                 {user.role === 'LIDER' && <option value="AYUDANTE">AYUDANTE</option>}
                                             </select>
                                 </div>
-                                        <div className="relative">
+                                        <div className={`relative ${['ADMIN', 'ASESOR'].includes(newUser.role) ? 'hidden' : ''}`}>
                                             <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1 ml-1">Tienda / CR (Búsqueda)</label>
                                             <input 
                                                 type="text" 
@@ -1138,7 +1137,7 @@
                                                 value={user.role === 'LIDER' && user.cr ? `${user.cr} - ${storeInfo?.store_name || ''}` : crSearch}
                                                 onFocus={() => { if (user.role !== 'LIDER') setShowCrResults(true); }}
                                                 onChange={e => { if (user.role !== 'LIDER') { setCrSearch(e.target.value); setShowCrResults(true); } }}
-                                                required={!newUser.cr}
+                                                required={!newUser.cr && !['ADMIN', 'ASESOR'].includes(newUser.role)}
                                                 readOnly={user.role === 'LIDER'}
                                             />
                                             {showCrResults && user.role !== 'LIDER' && (

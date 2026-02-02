@@ -1,0 +1,11 @@
+cd D:\WEB\bitacora
+git status
+git add .
+git commit -m "Tu mensaje de cambio"
+git push
+
+
+VPS
+git log --oneline -5
+git branch -vv
+
