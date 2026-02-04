@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OXXO - Bitácora Digital</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.29/dist/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --oxxo-red: #E30613;
+            --oxxo-yellow: #FFD200;
+            --bg-page: #F8F9FA;
+            --bg-card: #FFFFFF;
+            --text-primary: #212529;
+            --text-secondary: #6C757D;
+            --border-light: #E9ECEF;
+            --shadow-soft: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-primary);
+            line-height: 1.5;
+            letter-spacing: 0.01em;
+        }
+
+        .vps-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .kpi-card {
+            border-top: 3px solid var(--oxxo-yellow);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            background: #F1F3F5;
+            padding: 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        .data-table td {
+            padding: 16px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text-primary);
+        }
+
+        .data-table tr:hover {
+            background-color: #F8F9FA;
+        }
+
+        .btn-primary {
+            background-color: var(--oxxo-red);
+            color: white;
+            font-weight: 600;
+            padding: 10px 20px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background-color: #C40510;
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            border: 1.5px solid var(--oxxo-red);
+            color: var(--oxxo-red);
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            background: transparent;
+            transition: all 0.2s;
+        }
+
+        .btn-outline:hover {
+            background-color: #FFF5F5;
+        }
+
+        .vps-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            background: white;
+            color: var(--text-primary);
+            transition: border-color 0.2s;
+        }
+
+        .vps-input:focus {
+            border-color: var(--oxxo-red);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [view, setView] = useState('login');
+            const [stores, setStores] = useState([]);
+            const [stats, setStats] = useState({ total_stores: 0, today_amount: 0 });
+            const [loading, setLoading] = useState(false);
+            const [storeHistory, setHistory] = useState([]);
+            const [storeInfo, setStoreInfo] = useState(null);
+            const [menuOpen, setMenuOpen] = useState(false);
+            const [passwordModal, setPasswordModal] = useState({ open: false, current: '', next: '', message: '' });
+
+            const Logo = ({ className }) => {
+                const [error, setError] = useState(false);
+                if (error) {
+                    return <span className={`font-black text-white tracking-tighter uppercase ${className}`}>Bitácora Digital OXXO</span>;
+                }
+                return (
+                    <img
+                        src="/logo.svg"
+                        alt="OXXO Logo"
+                        className={className}
+                        onError={() => setError(true)}
+                    />
+                );
+            };
+
+            const MenuDrawer = () => {
+                if (!menuOpen) return null;
+                return (
+                    <div className="fixed inset-0 z-[300]">
+                        <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)}></div>
+                        <div className="absolute top-0 right-0 w-64 h-full bg-white shadow-xl p-6 space-y-4">
+                            <h3 className="text-sm font-bold text-[#212529] uppercase">Menú</h3>
+                            <button className="w-full text-left text-sm text-[#E30613] font-semibold" onClick={openPasswordModal}>
+                                Cambiar Contraseña
+                            </button>
+                            {(user && (user.role === 'ADMIN' || user.role === 'ASESOR' || user.role === 'LIDER')) && (
+                                <button className="w-full text-left text-sm text-[#212529]" onClick={() => { setView('users'); setMenuOpen(false); }}>
+                                    Gestionar Usuarios
+                                </button>
+                            )}
+                            {user && user.role === 'LIDER' && (
+                                <button className="w-full text-left text-sm text-[#212529]" onClick={() => { setView('consultas'); setMenuOpen(false); }}>
+                                    Consultas de Retiros
+                                </button>
+                            )}
+                            {user && (user.role === 'ADMIN' || user.role === 'ASESOR') && (
+                                <button className="w-full text-left text-sm text-[#212529]" onClick={() => { setView('reportes'); setMenuOpen(false); }}>
+                                    Consultas de Retiros
+                                </button>
+                            )}
+                            {user && ['ENCARGADO', 'CAJERO', 'AYUDANTE'].includes(user.role) && (
+                                <button className="w-full text-left text-sm text-[#212529]" onClick={() => { setView('mis-retiros'); setMenuOpen(false); }}>
+                                    Mis Retiros
+                                </button>
+                            )}
+                            {user && (
+                                <button className="w-full text-left text-sm text-[#212529]" onClick={() => { setUser(null); setMenuOpen(false); }}>
+                                    Cerrar Sesión
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const openPasswordModal = () => {
+                setPasswordModal({ open: true, current: '', next: '', message: '' });
+                setMenuOpen(false);
+            };
+
+            const handleChangePassword = async (e) => {
+                e.preventDefault();
+                const res = await fetch('/api/users/change-password', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: user.username,
+                        currentPassword: passwordModal.current,
+                        newPassword: passwordModal.next
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setPasswordModal({ open: false, current: '', next: '', message: '' });
+                    alert('Contraseña actualizada correctamente');
+                } else {
+                    setPasswordModal(prev => ({ ...prev, message: data.message || 'No se pudo actualizar.' }));
+                }
+            };
+
+            const Login = () => {
+                const [email, setEmail] = useState('');
+                const [pass, setPass] = useState('');
+                const [error, setError] = useState('');
+
+                const handleLogin = async (e) => {
+                    e.preventDefault();
+                    setLoading(true);
+                    try {
+                        const res = await fetch('/api/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: email, password: pass })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            setUser(data.user);
+                            if (['LIDER', 'ENCARGADO', 'CAJERO', 'AYUDANTE'].includes(data.user.role) && data.user.cr) {
+                                loadStoreInfo(data.user.cr);
+                                setView('withdrawal');
+                            } else if (data.user.role === 'ASESOR') {
+                                loadDashboardData(data.user.username, 'reportes');
+                            } else if (data.user.role === 'ADMIN') {
+                                setView('reportes');
+                            } else {
+                                loadDashboardData(data.user.username);
+                            }
+                        } else {
+                            setError(data.message);
+                        }
+                    } catch (err) { setError('Error de conexión'); }
+                    finally { setLoading(false); }
+                };
+
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-6 bg-[#F8F9FA]">
+                        <div className="max-w-md w-full bg-white p-10 rounded-2xl shadow-xl border border-[#E9ECEF]">
+                            <div className="text-center mb-10">
+                                <div className="mb-6 flex justify-center">
+                                    <Logo className="h-32" />
+                                </div>
+                                <h1 className="text-2xl font-bold text-[#212529] tracking-tight">Bitácora de Retiros</h1>
+                                <p className="text-[#6C757D] text-sm mt-2 font-medium uppercase tracking-widest leading-tight">
+                                    Enterprise Edition<br /><span className="text-[10px] opacity-75">v1.0</span>
+                                </p>
+                            </div>
+                            <form onSubmit={handleLogin} className="space-y-6">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-2 ml-1">Identidad Corporativa</label>
+                                    <input type="email" placeholder="usuario@oxxo.com" required className="vps-input" value={email} onChange={e => setEmail(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-2 ml-1">Código de Acceso</label>
+                                    <input type="password" placeholder="••••••••" required className="vps-input" value={pass} onChange={e => setPass(e.target.value)} />
+                                </div>
+                                <button type="submit" className="w-full btn-primary py-4 text-sm uppercase tracking-widest">
+                                    {loading ? 'Validando...' : 'Entrar al Sistema'}
+                                </button>
+                            </form>
+                            {error && <div className="mt-6 p-3 bg-red-50 border border-red-100 rounded-lg text-center text-red-600 text-xs font-bold uppercase">{error}</div>}
+                        </div>
+                    </div>
+                );
+            };
+
+            const WithdrawalForm = () => {
+                const [amount, setAmount] = useState('');
+                const [retiroNum, setRetiroNum] = useState('');
+                const [caja, setCaja] = useState('');
+                const [photo, setPhoto] = useState(null);
+                const [photoName, setPhotoName] = useState('');
+                const [modal, setModal] = useState({ open: false, title: '', message: '' });
+                const userCr = user?.cr || storeInfo?.cr || '';
+                const storeName = storeInfo?.store_name || (stores.find(s => s.cr === userCr)?.name || '');
+                const formatCurrency = (value) => {
+                    if (!value) return '';
+                    const numeric = Number(value);
+                    if (Number.isNaN(numeric)) return '';
+                    return numeric.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+                };
+
+                const handleSubmit = async (e) => {
+                    e.preventDefault();
+                    if (!userCr) {
+                        setModal({ open: true, title: 'Falta CR', message: 'No se encontró una tienda asignada.' });
+                        return;
+                    }
+                    if (!retiroNum || !caja || !amount || !photo) {
+                        setModal({ open: true, title: 'Datos incompletos', message: 'Número de retiro, caja, monto y foto son obligatorios.' });
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('cr', userCr);
+                    formData.append('amount', amount);
+                    formData.append('retiro_num', retiroNum);
+                    formData.append('caja', caja);
+                    formData.append('collaborator1', user.username);
+                    formData.append('role', user.role);
+                    formData.append('photo', photo);
+
+                    const res = await fetch('/api/withdrawals', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setAmount('');
+                        setRetiroNum('');
+                        setPhoto(null);
+                        setModal({ open: true, title: 'Registro Exitoso', message: data.message });
+                    } else {
+                        setModal({ open: true, title: 'Error', message: data.message || 'No se pudo registrar el retiro.' });
+                    }
+                };
+
+                return (
+                    <div className="min-h-screen bg-[#F8F9FA]">
+                        <header className="bg-[#E30613] text-white px-8 py-4 flex justify-between items-center shadow-md">
+                            <div className="flex items-center space-x-6">
+                                <div className="bg-white p-1 rounded">
+                                    <Logo className="h-8" />
+                                </div>
+                                <h1 className="text-xs font-bold uppercase tracking-wider opacity-90">Registro de Retiros</h1>
+                            </div>
+                            <div className="flex items-center space-x-6">
+                                <div className="text-right border-r border-white/20 pr-6">
+                                    <p className="text-xs font-bold">{user.name}</p>
+                                    <p className="text-[10px] opacity-80 uppercase">
+                                        {user.role} {user.cr && <span className="opacity-75">· {user.cr} {storeInfo?.store_name ? `- ${storeInfo.store_name}` : ''}</span>}
+                                    </p>
+                                </div>
+                                <button onClick={() => setMenuOpen(true)} className="text-white text-xl">☰</button>
+                            </div>
+                        </header>
+
+                        <main className="max-w-xl mx-auto p-8">
+                            <div className="vps-card p-8 border-t-4 border-t-[#E30613]">
+                                <h2 className="text-lg font-bold text-[#212529] mb-6">Registro de Retiro de Efectivo</h2>
+                                <div className="text-xs text-[#6C757D] mb-4">
+                                    Tienda/CR asignado: <span className="font-bold text-[#212529]">{userCr || 'Sin asignar'}</span>
+                                    {storeName && <span className="ml-2">· {storeName}</span>}
+                                </div>
+                                <form onSubmit={handleSubmit} className="space-y-4">
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Número de retiro</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Número de retiro"
+                                        className="vps-input text-sm"
+                                        value={retiroNum}
+                                        onChange={e => setRetiroNum(e.target.value)}
+                                        required
+                                    />
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Caja</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Caja / Terminal"
+                                        className="vps-input text-sm"
+                                        value={caja}
+                                        onChange={e => setCaja(e.target.value)}
+                                        required
+                                    />
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Monto del retiro</label>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="0.00"
+                                        className="vps-input text-sm"
+                                        value={amount}
+                                        onChange={e => {
+                                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                            const parts = raw.split('.');
+                                            const normalized = parts.length > 1 ? `${parts[0]}.${parts[1].slice(0, 2)}` : parts[0];
+                                            setAmount(normalized);
+                                        }}
+                                        required
+                                    />
+                                    <div className="text-[11px] text-[#6C757D]">
+                                        Formato: <span className="font-semibold">{formatCurrency(amount) || '$0.00'}</span>
+                                    </div>
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Foto de evidencia</label>
+                                    <input
+                                        type="file"
+                                        accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                                        className="vps-input text-sm"
+                                        onChange={e => {
+                                            const file = e.target.files?.[0] || null;
+                                            setPhoto(file);
+                                            setPhotoName(file ? file.name : '');
+                                        }}
+                                        required
+                                    />
+                                    {photoName && (
+                                        <div className="text-[11px] text-[#6C757D]">
+                                            Archivo seleccionado: <span className="font-semibold">{photoName}</span>
+                                        </div>
+                                    )}
+                                    <button type="submit" className="w-full btn-primary uppercase text-xs tracking-widest py-3">
+                                        Registrar Retiro
+                                    </button>
+                                </form>
+                            </div>
+                        </main>
+
+                        {modal.open && (
+                            <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[210]">
+                                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center border border-[#E9ECEF]">
+                                    <h3 className="text-lg font-bold mb-3 text-[#212529]">{modal.title}</h3>
+                                    <p className="text-sm text-[#6C757D] mb-6">{modal.message}</p>
+                                    <button onClick={() => setModal({ open: false, title: '', message: '' })} className="btn-primary w-full">Aceptar</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const LeaderConsultas = () => {
+                const [rows, setRows] = useState([]);
+                const [date, setDate] = useState('');
+                const [employee, setEmployee] = useState('');
+                const [employees, setEmployees] = useState([]);
+                const [selectedRow, setSelectedRow] = useState(null);
+
+                useEffect(() => {
+                    fetchEmployees();
+                    fetchRows();
+                }, []);
+
+                const fetchEmployees = async () => {
+                    const res = await fetch(`/api/users?requester_role=${user.role}&requester_email=${user.username}`);
+                    const data = await res.json();
+                    setEmployees(data || []);
+                };
+
+                const fetchRows = async () => {
+                    const params = new URLSearchParams({
+                        requester_role: user.role,
+                        requester_email: user.username
+                    });
+                    if (date) params.append('date', date);
+                    if (employee) params.append('employee', employee);
+                    const res = await fetch(`/api/withdrawals?${params.toString()}`);
+                    const data = await res.json();
+                    setRows(data || []);
+                };
+
+                return (
+                    <div className="min-h-screen bg-[#F8F9FA]">
+                        <header className="bg-[#E30613] text-white px-8 py-4 flex justify-between items-center shadow-md">
+                            <div className="flex items-center space-x-6">
+                                <div className="bg-white p-1 rounded">
+                                    <Logo className="h-8" />
+                                </div>
+                                <h1 className="text-xs font-bold uppercase tracking-wider opacity-90">Consultas de Retiros</h1>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <button onClick={() => setMenuOpen(true)} className="text-white text-xl">☰</button>
+                                <button onClick={() => setView('withdrawal')} className="text-[10px] font-bold hover:underline uppercase">Volver</button>
+                            </div>
+                        </header>
+
+                        <main className="max-w-5xl mx-auto p-8 space-y-6">
+                            <div className="vps-card p-4 flex flex-wrap md:flex-nowrap gap-3 items-end">
+                                <div className="flex-1 min-w-[120px]">
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Fecha</label>
+                                    <input type="date" className="vps-input text-sm" value={date} onChange={e => setDate(e.target.value)} />
+                                </div>
+                                <div className="flex-1 min-w-[140px]">
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Empleado</label>
+                                    <select className="vps-input text-sm" value={employee} onChange={e => setEmployee(e.target.value)}>
+                                        <option value="">Todos</option>
+                                        {employees.map(u => (
+                                            <option key={u.username} value={u.username}>{u.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <button onClick={fetchRows} className="btn-outline text-xs whitespace-nowrap">Filtrar</button>
+                            </div>
+
+                            <div className="vps-card overflow-hidden">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Hora</th>
+                                            <th>Empleado</th>
+                                            <th>Monto</th>
+                                            <th>Caja</th>
+                                            <th>Núm. Retiro</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows.length === 0 ? (
+                                            <tr><td colSpan="5" className="text-center text-[#6C757D]">Sin registros</td></tr>
+                                        ) : rows.map(r => (
+                                            <tr key={r.id} className="cursor-pointer" onClick={() => setSelectedRow(r)}>
+                                                <td>{r.time}</td>
+                                                <td>{r.collaborator1}</td>
+                                                <td className="font-bold">${Number(r.amount).toLocaleString('es-MX')}</td>
+                                                <td>{r.caja}</td>
+                                                <td>{r.retiro_num}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </main>
+                        {selectedRow && (
+                            <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[210]">
+                                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-lg w-full border border-[#E9ECEF]">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[#212529]">Detalle de Retiro</h3>
+                                            <p className="text-[11px] text-[#6C757D] uppercase tracking-widest">Consulta de retiros</p>
+                                        </div>
+                                        <button onClick={() => setSelectedRow(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Fecha</div>
+                                            <div className="font-semibold">{selectedRow.date}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Hora</div>
+                                            <div className="font-semibold">{selectedRow.time}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Monto</div>
+                                            <div className="font-semibold">${Number(selectedRow.amount).toLocaleString('es-MX')}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Caja</div>
+                                            <div className="font-semibold">{selectedRow.caja}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Núm. Retiro</div>
+                                            <div className="font-semibold">{selectedRow.retiro_num}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Empleado</div>
+                                            <div className="font-semibold">{selectedRow.collaborator1}</div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-6">
+                                        <div className="text-[10px] text-[#6C757D] font-bold uppercase mb-2">Evidencia</div>
+                                        {selectedRow.photo_url ? (
+                                            <img
+                                                src={`http://localhost:5000${selectedRow.photo_url}`}
+                                                alt="Evidencia del retiro"
+                                                className="w-full rounded-lg border border-[#E9ECEF]"
+                                            />
+                                        ) : (
+                                            <div className="text-[12px] text-[#6C757D]">Sin foto</div>
+                                        )}
+                                    </div>
+                                    {selectedRow.photo_url && (
+                                        <div className="mt-4">
+                                            <button
+                                                onClick={() => window.open(`http://localhost:5000${selectedRow.photo_url}`, '_blank')}
+                                                className="btn-outline text-xs w-full"
+                                            >
+                                                Abrir Imagen
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const ReportConsultas = () => {
+                const [rows, setRows] = useState([]);
+                const [date, setDate] = useState('');
+                const [employee, setEmployee] = useState('');
+                const [advisor, setAdvisor] = useState('');
+                const [storeQuery, setStoreQuery] = useState('');
+                const [employees, setEmployees] = useState([]);
+                const [advisors, setAdvisors] = useState([]);
+                const [selectedRow, setSelectedRow] = useState(null);
+
+                useEffect(() => {
+                    fetchUsers();
+                    fetchRows();
+                }, []);
+
+                useEffect(() => {
+                    const timer = setTimeout(() => {
+                        fetchRows();
+                    }, 300);
+                    return () => clearTimeout(timer);
+                }, [date, employee, advisor, storeQuery]);
+
+                const fetchUsers = async () => {
+                    const res = await fetch(`/api/users?requester_role=${user.role}&requester_email=${user.username}`);
+                    const data = await res.json();
+                    const users = data || [];
+                    setEmployees(users.filter(u => !['ADMIN', 'ASESOR'].includes(u.role)));
+                    if (user.role === 'ADMIN') {
+                        setAdvisors(users.filter(u => u.role === 'ASESOR'));
+                    }
+                };
+
+                const fetchRows = async () => {
+                    const params = new URLSearchParams({
+                        requester_role: user.role,
+                        requester_email: user.username
+                    });
+                    if (date) params.append('date', date);
+                    if (employee) params.append('employee', employee);
+                    if (storeQuery) params.append('store', storeQuery);
+                    if (user.role === 'ADMIN' && advisor) params.append('advisor', advisor);
+                    const res = await fetch(`/api/withdrawals/report?${params.toString()}`);
+                    const data = await res.json();
+                    setRows(data || []);
+                };
+
+                const formatRowForExport = (r) => ({
+                    Fecha: r.date,
+                    Hora: r.time,
+                    Tienda: `${r.cr}${r.store_name ? ` · ${r.store_name}` : ''}`,
+                    ...(user.role === 'ADMIN' ? { Asesor: r.advisor_id || 'N/A' } : {}),
+                    Empleado: r.collaborator1,
+                    Monto: Number(r.amount),
+                    Caja: r.caja,
+                    'Núm. Retiro': r.retiro_num
+                });
+
+                const exportExcel = () => {
+                    if (!window.XLSX) return;
+                    const data = rows.map(formatRowForExport);
+                    const ws = XLSX.utils.json_to_sheet(data);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+                    const fileName = `Reporte_Retiros_${user.role}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    XLSX.writeFile(wb, fileName);
+                };
+
+                const exportPdf = () => {
+                    if (!window.jspdf) return;
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF({ orientation: 'landscape' });
+                    const headers = Object.keys(formatRowForExport(rows[0] || {}));
+                    const body = rows.map(r => Object.values(formatRowForExport(r)));
+                    doc.text('Reporte de Retiros', 14, 12);
+                    doc.autoTable({
+                        head: [headers],
+                        body,
+                        startY: 18,
+                        styles: { fontSize: 8 }
+                    });
+                    const fileName = `Reporte_Retiros_${user.role}_${new Date().toISOString().split('T')[0]}.pdf`;
+                    doc.save(fileName);
+                };
+
+                return (
+                    <div className="min-h-screen bg-[#F8F9FA]">
+                        <header className="bg-[#E30613] text-white px-8 py-4 flex justify-between items-center shadow-md">
+                            <div className="flex items-center space-x-6">
+                                <div className="bg-white p-1 rounded">
+                                    <Logo className="h-8" />
+                                </div>
+                                <h1 className="text-xs font-bold uppercase tracking-wider opacity-90">Consultas de Retiros</h1>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <div className="text-right border-r border-white/20 pr-4">
+                                    <p className="text-xs font-bold">{user.name}</p>
+                                    <p className="text-[10px] opacity-80 uppercase">
+                                        {user.role} {user.cr && <span className="opacity-75">· {user.cr} {storeInfo?.store_name ? `- ${storeInfo.store_name}` : ''}</span>}
+                                    </p>
+                                </div>
+                                <button onClick={() => setMenuOpen(true)} className="text-white text-xl">☰</button>
+                                {!['ADMIN', 'ASESOR'].includes(user.role) && (
+                                    <button onClick={() => setView('dashboard')} className="text-[10px] font-bold hover:underline uppercase">Volver</button>
+                                )}
+                            </div>
+                        </header>
+
+                        <main className="max-w-6xl mx-auto p-8 space-y-6">
+                            <div className="vps-card p-4 flex flex-wrap md:flex-nowrap gap-3 items-end">
+                                <div className="flex-1 min-w-[140px]">
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Tienda (CR o nombre)</label>
+                                    <input type="text" className="vps-input text-sm" value={storeQuery} onChange={e => setStoreQuery(e.target.value)} />
+                                </div>
+                                <div className="flex-1 min-w-[120px]">
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Fecha</label>
+                                    <input type="date" className="vps-input text-sm" value={date} onChange={e => setDate(e.target.value)} />
+                                </div>
+                                <div className="flex-1 min-w-[160px]">
+                                    <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Colaborador</label>
+                                    <select className="vps-input text-sm" value={employee} onChange={e => setEmployee(e.target.value)}>
+                                        <option value="">Todos</option>
+                                        {employees.map(u => (
+                                            <option key={u.username} value={u.username}>{u.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {user.role === 'ADMIN' && (
+                                    <div className="flex-1 min-w-[160px]">
+                                        <label className="block text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-1 ml-1">Asesor</label>
+                                        <select className="vps-input text-sm" value={advisor} onChange={e => setAdvisor(e.target.value)}>
+                                            <option value="">Todos</option>
+                                            {advisors.map(u => (
+                                                <option key={u.username} value={u.username}>{u.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                <button onClick={fetchRows} className="btn-outline text-xs whitespace-nowrap">Filtrar</button>
+                                <button onClick={exportExcel} className="btn-outline text-xs whitespace-nowrap">Exportar Excel</button>
+                                <button onClick={exportPdf} className="btn-outline text-xs whitespace-nowrap">Exportar PDF</button>
+                            </div>
+
+                            <div className="vps-card overflow-hidden">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Hora</th>
+                                            <th>Tienda</th>
+                                            {user.role === 'ADMIN' && <th>Asesor</th>}
+                                            <th>Empleado</th>
+                                            <th>Monto</th>
+                                            <th>Caja</th>
+                                            <th>Núm. Retiro</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows.length === 0 ? (
+                                            <tr><td colSpan={user.role === 'ADMIN' ? "8" : "7"} className="text-center text-[#6C757D]">Sin registros</td></tr>
+                                        ) : rows.map(r => (
+                                            <tr key={r.id} className="cursor-pointer" onClick={() => setSelectedRow(r)}>
+                                                <td>{r.date}</td>
+                                                <td>{r.time}</td>
+                                                <td className="text-[11px] text-[#6C757D]">{r.cr} {r.store_name ? `· ${r.store_name}` : ''}</td>
+                                                {user.role === 'ADMIN' && <td>{r.advisor_id || 'N/A'}</td>}
+                                                <td>{r.collaborator1}</td>
+                                                <td className="font-bold">${Number(r.amount).toLocaleString('es-MX')}</td>
+                                                <td>{r.caja}</td>
+                                                <td>{r.retiro_num}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </main>
+                        {selectedRow && (
+                            <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[210]">
+                                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-lg w-full border border-[#E9ECEF]">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[#212529]">Detalle de Retiro</h3>
+                                            <p className="text-[11px] text-[#6C757D] uppercase tracking-widest">Consulta de retiros</p>
+                                        </div>
+                                        <button onClick={() => setSelectedRow(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Fecha</div>
+                                            <div className="font-semibold">{selectedRow.date}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Hora</div>
+                                            <div className="font-semibold">{selectedRow.time}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Monto</div>
+                                            <div className="font-semibold">${Number(selectedRow.amount).toLocaleString('es-MX')}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Caja</div>
+                                            <div className="font-semibold">{selectedRow.caja}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Núm. Retiro</div>
+                                            <div className="font-semibold">{selectedRow.retiro_num}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Empleado</div>
+                                            <div className="font-semibold">{selectedRow.collaborator1}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Tienda</div>
+                                            <div className="font-semibold">{selectedRow.cr} {selectedRow.store_name ? `· ${selectedRow.store_name}` : ''}</div>
+                                        </div>
+                                        {user.role === 'ADMIN' && (
+                                            <div>
+                                                <div className="text-[10px] text-[#6C757D] font-bold uppercase">Asesor</div>
+                                                <div className="font-semibold">{selectedRow.advisor_id || 'N/A'}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="mt-6">
+                                        <div className="text-[10px] text-[#6C757D] font-bold uppercase mb-2">Evidencia</div>
+                                        {selectedRow.photo_url ? (
+                                            <img
+                                                src={`http://localhost:5000${selectedRow.photo_url}`}
+                                                alt="Evidencia del retiro"
+                                                className="w-full rounded-lg border border-[#E9ECEF]"
+                                            />
+                                        ) : (
+                                            <div className="text-[12px] text-[#6C757D]">Sin foto</div>
+                                        )}
+                                    </div>
+                                    {selectedRow.photo_url && (
+                                        <div className="mt-4">
+                                            <button
+                                                onClick={() => window.open(`http://localhost:5000${selectedRow.photo_url}`, '_blank')}
+                                                className="btn-outline text-xs w-full"
+                                            >
+                                                Abrir Imagen
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const OwnWithdrawals = () => {
+                const [rows, setRows] = useState([]);
+                const [loadingRows, setLoadingRows] = useState(false);
+                const [selectedRow, setSelectedRow] = useState(null);
+
+                const fetchRows = async () => {
+                    setLoadingRows(true);
+                    try {
+                        const params = new URLSearchParams({
+                            requester_role: user.role,
+                            requester_email: user.username
+                        });
+                        const res = await fetch(`/api/withdrawals/self?${params.toString()}`);
+                        const data = await res.json();
+                        setRows(data || []);
+                    } catch (e) {
+                        console.error(e);
+                        setRows([]);
+                    } finally {
+                        setLoadingRows(false);
+                    }
+                };
+
+                useEffect(() => {
+                    fetchRows();
+                }, []);
+
+                return (
+                    <div className="min-h-screen bg-[#F8F9FA]">
+                        <header className="bg-[#E30613] text-white px-8 py-4 flex justify-between items-center shadow-md">
+                            <div className="flex items-center space-x-6">
+                                <div className="bg-white p-1 rounded">
+                                    <Logo className="h-8" />
+                                </div>
+                                <h1 className="text-xs font-bold uppercase tracking-wider opacity-90">Mis Retiros</h1>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <div className="text-right border-r border-white/20 pr-4">
+                                    <p className="text-xs font-bold">{user.name}</p>
+                                    <p className="text-[10px] opacity-80 uppercase">
+                                        {user.role} {user.cr && <span className="opacity-75">· {user.cr} {storeInfo?.store_name ? `- ${storeInfo.store_name}` : ''}</span>}
+                                    </p>
+                                </div>
+                                <button onClick={() => setMenuOpen(true)} className="text-white text-xl">☰</button>
+                                <button onClick={() => setView('withdrawal')} className="text-[10px] font-bold hover:underline uppercase">Volver</button>
+                            </div>
+                        </header>
+
+                        <main className="max-w-5xl mx-auto p-8 space-y-6">
+                            <div className="vps-card p-4 flex justify-between items-center">
+                                <div className="text-xs text-[#6C757D] font-bold uppercase tracking-widest">Historial personal</div>
+                                <button onClick={fetchRows} className="btn-outline text-xs whitespace-nowrap">
+                                    {loadingRows ? 'Actualizando...' : 'Actualizar'}
+                                </button>
+                            </div>
+
+                            <div className="vps-card overflow-hidden">
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Hora</th>
+                                            <th>Monto</th>
+                                            <th>Caja</th>
+                                            <th>Núm. Retiro</th>
+                                            <th>Evidencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows.length === 0 ? (
+                                            <tr><td colSpan="6" className="text-center text-[#6C757D]">Sin registros</td></tr>
+                                        ) : rows.map(r => (
+                                            <tr key={r.id} className="cursor-pointer" onClick={() => setSelectedRow(r)}>
+                                                <td>{r.date}</td>
+                                                <td>{r.time}</td>
+                                                <td className="font-bold">${Number(r.amount).toLocaleString('es-MX')}</td>
+                                                <td>{r.caja}</td>
+                                                <td>{r.retiro_num}</td>
+                                                <td>
+                                                    {r.photo_url ? (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedRow(r);
+                                                            }}
+                                                            className="btn-outline text-[10px] uppercase"
+                                                        >
+                                                            Ver Detalle
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] text-[#6C757D]">Sin foto</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </main>
+                        {selectedRow && (
+                            <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[210]">
+                                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-lg w-full border border-[#E9ECEF]">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[#212529]">Detalle de Retiro</h3>
+                                            <p className="text-[11px] text-[#6C757D] uppercase tracking-widest">Historial personal</p>
+                                        </div>
+                                        <button onClick={() => setSelectedRow(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Fecha</div>
+                                            <div className="font-semibold">{selectedRow.date}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Hora</div>
+                                            <div className="font-semibold">{selectedRow.time}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Monto</div>
+                                            <div className="font-semibold">${Number(selectedRow.amount).toLocaleString('es-MX')}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Caja</div>
+                                            <div className="font-semibold">{selectedRow.caja}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] text-[#6C757D] font-bold uppercase">Núm. Retiro</div>
+                                            <div className="font-semibold">{selectedRow.retiro_num}</div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-6">
+                                        <div className="text-[10px] text-[#6C757D] font-bold uppercase mb-2">Evidencia</div>
+                                        {selectedRow.photo_url ? (
+                                            <img
+                                                src={`http://localhost:5000${selectedRow.photo_url}`}
+                                                alt="Evidencia del retiro"
+                                                className="w-full rounded-lg border border-[#E9ECEF]"
+                                            />
+                                        ) : (
+                                            <div className="text-[12px] text-[#6C757D]">Sin foto</div>
+                                        )}
+                                    </div>
+                                    {selectedRow.photo_url && (
+                                        <div className="mt-4">
+                                            <button
+                                                onClick={() => window.open(`http://localhost:5000${selectedRow.photo_url}`, '_blank')}
+                                                className="btn-outline text-xs w-full"
+                                            >
+                                                Abrir Imagen
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // 3. USER MANAGEMENT COMPONENT (ADMIN & ASESOR)
+            const UserManagement = () => {
+                const [allUsers, setAllUsers] = useState([]); // Estado inicial vacío
+                const [newUser, setNewUser] = useState({ name: '', username: '', role: 'AYUDANTE', password: '', cr: '' });
+                const [resetInfo, setResetInfo] = useState(null);
+                const [filter, setFilter] = useState('');
+                const [crSearch, setCrSearch] = useState('');
+                const [showCrResults, setShowCrResults] = useState(false);
+                const [securityError, setSecurityError] = useState(false);
+                const [modal, setModal] = useState({ open: false, title: '', message: '' });
+                const [confirmModal, setConfirmModal] = useState({ open: false, user: null });
+
+                useEffect(() => {
+                    fetchUsers();
+                    if (user.role === 'LIDER' && user.cr) {
+                        setNewUser(prev => ({ ...prev, cr: user.cr }));
+                        setCrSearch(`${user.cr} - ${storeInfo?.store_name || ''}`);
+                    }
+                }, []);
+
+                const fetchUsers = async () => {
+                    try {
+                        setAllUsers([]);
+                        const res = await fetch(`/api/users?requester_role=${user.role}&requester_email=${user.username}`);
+                        const data = await res.json();
+
+                        // Validación de seguridad en Frontend
+                        if (user.role === 'ASESOR') {
+                            const advisorStores = stores.map(s => s.cr.toLowerCase().trim());
+                            const hasUnauthorized = data.some(u => {
+                                if (!u.cr) return false; // Usuarios sin CR (como otros admins si llegaran a filtrarse)
+                                return !advisorStores.includes(u.cr.toLowerCase().trim());
+                            });
+
+                            if (hasUnauthorized) {
+                                console.error('VIOLACIÓN DE SEGURIDAD DETECTADA - Datos no pertenecen al asesor');
+                                setAllUsers([]);
+                                setSecurityError(true);
+                                return;
+                            }
+                        }
+
+                        setAllUsers(data || []);
+                    } catch (e) {
+                        console.error('Error cargando usuarios:', e);
+                        setAllUsers([]);
+                    }
+                };
+
+                const handleCreate = async (e) => {
+                    e.preventDefault();
+                    // Bloqueo de escritura manual: verificar que el CR esté en la lista del asesor/líder
+                    if (user.role === 'LIDER') {
+                        if (user.cr) {
+                            newUser.cr = user.cr;
+                        }
+                    } else if (user.role === 'ASESOR') {
+                        const allowedStores = (stores.length > 0 ? stores : (storeInfo ? [{ cr: storeInfo.cr }] : []));
+                        const isValidStore = allowedStores.some(s => s.cr === newUser.cr);
+                        if (!isValidStore) {
+                            setModal({ open: true, title: 'Error de validación', message: 'Debes seleccionar una tienda válida de tu lista asignada.' });
+                            return;
+                        }
+                    }
+                    if (!newUser.cr && !['ADMIN', 'ASESOR'].includes(newUser.role)) {
+                        setModal({ open: true, title: 'Datos incompletos', message: 'Debes seleccionar una tienda válida.' });
+                        return;
+                    }
+
+                    const res = await fetch('/api/users/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...newUser,
+                            requester_role: user.role,
+                            requester_email: user.username
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setModal({ open: true, title: 'Registro Exitoso', message: 'Usuario registrado exitosamente.' });
+                        setNewUser({ name: '', username: '', role: 'AYUDANTE', password: '', cr: '' });
+                        setCrSearch('');
+                        fetchUsers();
+                    } else {
+                        setModal({ open: true, title: 'Error', message: data.message || 'No se pudo registrar el usuario.' });
+                    }
+                };
+
+                const handleResetPassword = (u) => {
+                    setConfirmModal({ open: true, user: u });
+                };
+
+                const executeReset = async () => {
+                    const u = confirmModal.user;
+                    if (!u) return;
+
+                    const newPass = 'Oxxo' + Math.floor(1000 + Math.random() * 9000) + '*';
+                    const res = await fetch('/api/users/reset-password', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: u.username, newPassword: newPass })
+                    });
+                    if ((await res.json()).success) {
+                        setResetInfo({ name: u.name, pass: newPass });
+                        setConfirmModal({ open: false, user: null });
+                    }
+                };
+
+                const storesForSearch = stores.length > 0
+                    ? stores
+                    : (storeInfo ? [{ cr: storeInfo.cr, name: storeInfo.store_name }] : []);
+
+                const filteredStores = storesForSearch.filter(s =>
+                    s.cr.toLowerCase().includes(crSearch.toLowerCase()) ||
+                    s.name.toLowerCase().includes(crSearch.toLowerCase())
+                );
+
+                const filteredUsers = allUsers.filter(u =>
+                    u.name.toLowerCase().includes(filter.toLowerCase()) ||
+                    (u.cr && u.cr.toLowerCase().includes(filter.toLowerCase())) ||
+                    u.role.toLowerCase().includes(filter.toLowerCase())
+                );
+
+                if (securityError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center bg-red-50 p-8">
+                            <div className="vps-card p-10 text-center max-w-md border-red-500 border-2">
+                                <div className="text-red-500 text-5xl mb-4">⚠️</div>
+                                <h2 className="text-xl font-bold text-red-700 mb-2">Error de Seguridad</h2>
+                                <p className="text-gray-600 mb-6">Se detectó un intento de acceso a datos no autorizados. Tu sesión ha sido restringida.</p>
+                                <button onClick={() => window.location.reload()} className="btn-primary">Reiniciar Aplicación</button>
+                            </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="min-h-screen p-8 bg-[#F8F9FA]">
+                        <header className="max-w-7xl mx-auto flex justify-between items-center mb-10">
+                            <div className="flex items-center space-x-4">
+                                <div className="bg-[#E30613] px-4 py-1 rounded shadow-sm">
+                                    <Logo className="h-6" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-[#212529]">Gestión de Personal</h1>
+                                    {storeInfo && (
+                                        <p className="text-[11px] text-[#6C757D]">
+                                            Tienda: <span className="font-semibold">{storeInfo.store_name}</span> ({storeInfo.cr}) ·
+                                            Asesor: <span className="font-semibold">{storeInfo.advisor_name}</span>
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                                <button onClick={() => setMenuOpen(true)} className="text-xl text-[#E30613]">☰</button>
+                                <button onClick={() => setView('dashboard')} className="btn-outline text-xs">Volver al Panel</button>
+                            </div>
+                        </header>
+
+                        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Formulario Lateral */}
+                            <div className="vps-card p-8 border-t-4 border-t-[#E30613]">
+                                <h3 className="text-sm font-bold uppercase text-[#6C757D] mb-6">Alta de Colaborador</h3>
+                                <form onSubmit={handleCreate} className="space-y-4">
+                                    <input type="text" placeholder="Nombre Completo" className="vps-input text-sm" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} required />
+                                    <input type="email" placeholder="Correo Corporativo" className="vps-input text-sm" value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} required />
+
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1 ml-1">Rol</label>
+                                            <select className="vps-input text-xs" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
+                                                {user.role === 'ADMIN' && <option value="ADMIN">ADMIN</option>}
+                                                {user.role === 'ADMIN' && <option value="ASESOR">ASESOR</option>}
+                                                {(user.role === 'ADMIN' || user.role === 'ASESOR') && <option value="LIDER">LÍDER</option>}
+                                                {(user.role === 'ADMIN' || user.role === 'ASESOR') && <option value="ENCARGADO">ENCARGADO</option>}
+                                                {(user.role === 'ADMIN' || user.role === 'ASESOR') && <option value="CAJERO">CAJERO</option>}
+                                                {(user.role === 'ADMIN' || user.role === 'ASESOR') && <option value="AYUDANTE">AYUDANTE</option>}
+                                                {user.role === 'LIDER' && <option value="ENCARGADO">ENCARGADO</option>}
+                                                {user.role === 'LIDER' && <option value="CAJERO">CAJERO</option>}
+                                                {user.role === 'LIDER' && <option value="AYUDANTE">AYUDANTE</option>}
+                                            </select>
+                                        </div>
+                                        <div className={`relative ${['ADMIN', 'ASESOR'].includes(newUser.role) ? 'hidden' : ''}`}>
+                                            <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1 ml-1">Tienda / CR (Búsqueda)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar por CR o Nombre..."
+                                                className="vps-input text-xs"
+                                                value={user.role === 'LIDER' && user.cr ? `${user.cr} - ${storeInfo?.store_name || ''}` : crSearch}
+                                                onFocus={() => { if (user.role !== 'LIDER') setShowCrResults(true); }}
+                                                onChange={e => { if (user.role !== 'LIDER') { setCrSearch(e.target.value); setShowCrResults(true); } }}
+                                                required={!newUser.cr && !['ADMIN', 'ASESOR'].includes(newUser.role)}
+                                                readOnly={user.role === 'LIDER'}
+                                            />
+                                            {showCrResults && user.role !== 'LIDER' && (
+                                                <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-b-lg shadow-xl max-h-40 overflow-y-auto mt-1">
+                                                    {filteredStores.length > 0 ? filteredStores.map(s => (
+                                                        <div
+                                                            key={s.cr}
+                                                            className="p-2 hover:bg-gray-50 cursor-pointer text-xs border-b border-gray-50"
+                                                            onClick={() => {
+                                                                setNewUser({ ...newUser, cr: s.cr });
+                                                                setCrSearch(`${s.cr} - ${s.name}`);
+                                                                setShowCrResults(false);
+                                                            }}
+                                                        >
+                                                            <span className="font-bold text-[#E30613]">{s.cr}</span> - {s.name}
+                                                        </div>
+                                                    )) : <div className="p-2 text-xs text-gray-400">No se encontraron tiendas asignadas</div>}
+                                                </div>
+                                            )}
+                                            {newUser.cr && !showCrResults && user.role !== 'LIDER' && (
+                                                <div className="flex justify-between items-center mt-1">
+                                                    <p className="text-[9px] text-green-600 font-bold ml-1">✓ Seleccionado: {newUser.cr}</p>
+                                                    <button type="button" onClick={() => { setNewUser({ ...newUser, cr: '' }); setCrSearch(''); }} className="text-[9px] text-red-500 underline">Cambiar</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <input type="password" placeholder="Contraseña Inicial" className="vps-input text-sm" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required />
+                                    <button type="submit" className="w-full btn-primary uppercase text-xs tracking-widest py-3">Registrar en Sistema</button>
+                                </form>
+                            </div>
+
+                            {/* Lista de Usuarios */}
+                            <div className="lg:col-span-2 space-y-4">
+                                <div className="vps-card p-4 flex items-center space-x-4">
+                                    <div className="flex-1 relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Filtrar por nombre, tienda o rol..."
+                                            className="vps-input pl-10 text-sm"
+                                            value={filter}
+                                            onChange={e => setFilter(e.target.value)}
+                                        />
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                                    </div>
+                                </div>
+
+                                <div className="vps-card overflow-hidden">
+                                    <table className="data-table">
+                                        <thead><tr><th>Colaborador</th><th>Tienda</th><th>Rol</th><th>Acciones</th></tr></thead>
+                                        <tbody>
+                                            {filteredUsers.map(u => (
+                                                <tr key={u.id}>
+                                                    <td>
+                                                        <p className="font-bold text-sm">{u.name}</p>
+                                                        <p className="text-[10px] text-gray-400">{u.username}</p>
+                                                    </td>
+                                                    <td className="font-mono text-xs font-bold text-gray-500">{u.cr || 'N/A'}</td>
+                                                    <td>
+                                                        <span className="text-[9px] font-black px-2 py-1 bg-gray-100 rounded-md text-gray-600 uppercase">{u.role}</span>
+                                                    </td>
+                                                    <td className="flex space-x-3">
+                                                        <button onClick={() => handleResetPassword(u)} className="text-blue-600 font-bold text-[10px] uppercase hover:underline">Reset</button>
+                                                        <button onClick={async () => { if (confirm('¿Eliminar acceso?')) { await fetch(`/api/users/${u.id}`, { method: 'DELETE' }); fetchUsers(); } }} className="text-red-600 font-bold text-[10px] uppercase hover:underline">Baja</button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {resetInfo && (
+                            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-[200]">
+                                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+                                    <h3 className="text-lg font-bold mb-4">Password Reseteado</h3>
+                                    <p className="text-sm text-gray-500 mb-4">Nueva clave para {resetInfo.name}:</p>
+                                    <div className="bg-gray-100 p-4 rounded-xl font-mono text-xl mb-6">{resetInfo.pass}</div>
+                                    <button onClick={() => setResetInfo(null)} className="btn-primary w-full">Entendido</button>
+                                </div>
+                            </div>
+                        )}
+                        {modal.open && (
+                            <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[210]">
+                                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center border border-[#E9ECEF]">
+                                    <h3 className="text-lg font-bold mb-3 text-[#212529]">{modal.title}</h3>
+                                    <p className="text-sm text-[#6C757D] mb-6">{modal.message}</p>
+                                    <button onClick={() => setModal({ open: false, title: '', message: '' })} className="btn-primary w-full">Aceptar</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const Dashboard = () => {
+                const [drawerStore, setDrawerStore] = useState(null);
+                return (
+                    <div className="min-h-screen bg-[#F8F9FA]">
+                        <header className="bg-[#E30613] text-white px-8 py-4 flex justify-between items-center shadow-md">
+                            <div className="flex items-center space-x-6">
+                                <div className="bg-white p-1 rounded">
+                                    <Logo className="h-8" />
+                                </div>
+                                <div className="h-6 w-px bg-white/20"></div>
+                                <h1 className="text-xs font-bold uppercase tracking-wider opacity-90">
+                                    {storeInfo ? `Tienda: ${storeInfo.store_name} · Asesor: ${storeInfo.advisor_name}` : 'Mando de Supervisión'}
+                                </h1>
+                            </div>
+                            <div className="flex items-center space-x-6">
+                                <div className="text-right border-r border-white/20 pr-6">
+                                    <p className="text-xs font-bold">{user.name}</p>
+                                    <p className="text-[10px] opacity-80 uppercase">
+                                        {user.role} {user.cr && <span className="opacity-75">· {user.cr} {storeInfo?.store_name ? `- ${storeInfo.store_name}` : ''}</span>}
+                                    </p>
+                                </div>
+                                <button onClick={() => setMenuOpen(true)} className="text-white text-xl">☰</button>
+                            </div>
+                        </header>
+                        <main className="p-8 max-w-7xl mx-auto space-y-8">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="vps-card kpi-card p-6">
+                                    <p className="text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-2">Tiendas Asignadas</p>
+                                    <h3 className="text-4xl font-bold text-[#212529]">{stats.total_stores}</h3>
+                                </div>
+                                <div className="vps-card kpi-card p-6">
+                                    <p className="text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-2">Monto Total Hoy</p>
+                                    <h3 className="text-4xl font-bold text-[#E30613] tracking-tight"><span className="text-2xl mr-1">$</span>{stats.today_amount.toLocaleString('es-MX')}</h3>
+                                </div>
+                                <div className="vps-card kpi-card p-6 flex items-center justify-between">
+                                    <div><p className="text-[10px] font-bold text-[#6C757D] uppercase tracking-widest mb-2">Estatus de Red</p><h3 className="text-xl font-bold text-green-600 uppercase">Sincronizado</h3></div>
+                                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                                </div>
+                            </div>
+                            <div className="vps-card overflow-hidden">
+                                <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+                                    <h2 className="text-xs font-bold uppercase text-gray-500">Supervisión de Tiendas</h2>
+                                    <div className="flex space-x-2">
+                                        {(user.role === 'ADMIN' || user.role === 'ASESOR' || user.role === 'LIDER') && (
+                                            <button onClick={() => setView('users')} className="btn-outline text-[10px]">
+                                                {user.role === 'ADMIN' ? '⚙️ Gestionar Usuarios' : '👥 Gestionar Personal'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="data-table">
+                                        <thead><tr><th>Estatus</th><th>CR</th><th>Nombre de Tienda</th><th>Monto Hoy</th><th>Acción</th></tr></thead>
+                                        <tbody>
+                                            {stores.map(s => (
+                                                <tr key={s.cr}>
+                                                    <td><div className="w-2 h-2 rounded-full bg-gray-300"></div></td>
+                                                    <td className="font-bold">{s.cr}</td>
+                                                    <td className="text-[#6C757D]">{s.name}</td>
+                                                    <td className="font-bold">$0.00</td>
+                                                    <td><button onClick={() => { fetchStoreHistory(s); setDrawerStore(s); }} className="btn-outline text-[10px]">Ver Evidencia</button></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </main>
+                        {drawerStore && (
+                            <div className="fixed inset-0 z-[100] flex justify-end">
+                                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDrawerStore(null)}></div>
+                                <div className="relative w-full max-w-md bg-white shadow-2xl h-full flex flex-col animate-in slide-in-from-right duration-300">
+                                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                        <div><h2 className="text-lg font-bold text-gray-800">{drawerStore.name}</h2><p className="text-[10px] text-gray-400 font-bold uppercase">{drawerStore.cr}</p></div>
+                                        <button onClick={() => setDrawerStore(null)} className="text-gray-400 hover:text-gray-600"><svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                        {storeHistory.length > 0 ? storeHistory.map(h => (
+                                            <div key={h.id} className="border border-gray-100 rounded-xl p-4 space-y-4">
+                                                <div className="flex justify-between items-center"><span className="text-xl font-bold text-[#E30613]">${h.amount.toLocaleString()}</span><span className="text-[10px] text-gray-400 font-bold">{h.date} {h.time}</span></div>
+                                                {h.photo_url && <img src={`http://localhost:5000${h.photo_url}`} className="w-full rounded-lg border border-gray-100 shadow-sm" alt="Fajilla" />}
+                                                <div className="text-[10px] text-gray-500"><p><strong>Registró:</strong> {h.collaborator1}</p><p><strong>Validó:</strong> {h.collaborator2}</p></div>
+                                            </div>
+                                        )) : <div className="text-center py-20 text-gray-300 font-bold uppercase">Sin registros</div>}
+                                    </div>
+                                    <div className="p-6 border-t border-gray-100 bg-gray-50"><button onClick={() => setDrawerStore(null)} className="w-full py-3 bg-gray-800 text-white font-bold rounded-lg text-xs uppercase tracking-widest">Cerrar Panel</button></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const loadStoreInfo = async (cr) => {
+                try {
+                    const res = await fetch(`/api/store-info/${cr}`);
+                    const data = await res.json();
+                    if (data && !data.success) return;
+                    setStoreInfo(data);
+                    setStores([{ cr: data.cr, name: data.store_name }]);
+                } catch (e) { console.error(e); }
+            };
+
+            const loadDashboardData = async (email, targetView = 'dashboard') => {
+                try {
+                    const [sRes, stRes] = await Promise.all([fetch(`/api/advisor/stores/${email}`), fetch(`/api/advisor/stats/${email}`)]);
+                    setStores(await sRes.json());
+                    setStats(await stRes.json());
+                    setView(targetView);
+                } catch (e) { console.error(e); }
+            };
+
+            const fetchStoreHistory = async (store) => {
+                try {
+                    const res = await fetch(`/api/withdrawals/${store.cr}`);
+                    setHistory(await res.json());
+                } catch (e) { console.error(e); }
+            };
+
+            if (!user) return <Login />;
+            let content = null;
+            if (view === 'users') content = <UserManagement />;
+            else if (view === 'withdrawal') content = <WithdrawalForm />;
+            else if (view === 'consultas') content = <LeaderConsultas />;
+            else if (view === 'mis-retiros') content = <OwnWithdrawals />;
+            else if (view === 'reportes') content = <ReportConsultas />;
+            else content = (user.role === 'ADMIN' || user.role === 'ASESOR') ? <ReportConsultas /> : <Dashboard />;
+
+            return (
+                <>
+                    {content}
+                    <MenuDrawer />
+                    {passwordModal.open && (
+                        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[310]">
+                            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center border border-[#E9ECEF]">
+                                <h3 className="text-lg font-bold mb-3 text-[#212529]">Cambiar Contraseña</h3>
+                                <form onSubmit={handleChangePassword} className="space-y-4">
+                                    <input
+                                        type="password"
+                                        placeholder="Contraseña actual"
+                                        className="vps-input text-sm"
+                                        value={passwordModal.current}
+                                        onChange={e => setPasswordModal(prev => ({ ...prev, current: e.target.value }))}
+                                        required
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Nueva contraseña"
+                                        className="vps-input text-sm"
+                                        value={passwordModal.next}
+                                        onChange={e => setPasswordModal(prev => ({ ...prev, next: e.target.value }))}
+                                        required
+                                    />
+                                    {passwordModal.message && (
+                                        <div className="text-[11px] text-red-600 font-bold">{passwordModal.message}</div>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={() => setPasswordModal({ open: false, current: '', next: '', message: '' })} className="btn-outline w-full">Cancelar</button>
+                                        <button type="submit" className="btn-primary w-full">Guardar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

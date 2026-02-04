@@ -1,0 +1,32 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer base {
+  body {
+    @apply bg-dark-vps text-gray-100 font-sans antialiased;
+  }
+  /* Estilo para números técnicos */
+  .font-mono-tech {
+    @apply font-mono tracking-tighter;
+  }
+}
+
+@layer components {
+  .vps-card {
+    @apply bg-card-bg border border-gray-800 rounded-xl shadow-vps transition-all duration-300;
+  }
+  
+  .vps-card-active {
+    @apply border-oxxo-red/50 shadow-glow-red;
+  }
+
+  .vps-input {
+    @apply bg-black border border-gray-800 rounded-lg px-4 py-2 text-gray-100 focus:border-oxxo-yellow focus:shadow-glow-yellow outline-none transition-all font-mono;
+  }
+
+  .btn-oxxo {
+    @apply bg-oxxo-red hover:bg-red-700 text-white font-black py-3 px-8 rounded-lg shadow-lg hover:shadow-glow-red transition-all active:scale-95 uppercase tracking-widest;
+  }
+}
+
