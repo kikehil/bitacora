@@ -311,18 +311,29 @@ def get_stats(email):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
+    # Check role
+    user = cursor.execute('SELECT role FROM users WHERE username = ?', (email,)).fetchone()
+    role = user[0] if user else 'ASESOR'
+
     # Conteo de tiendas
-    stores_count = cursor.execute('SELECT COUNT(*) FROM stores WHERE advisor_id = ?', (email,)).fetchone()[0]
+    if role == 'ADMIN':
+        stores_count = cursor.execute('SELECT COUNT(*) FROM stores').fetchone()[0]
+    else:
+        stores_count = cursor.execute('SELECT COUNT(*) FROM stores WHERE advisor_id = ?', (email,)).fetchone()[0]
     
     # Suma de hoy
     from datetime import datetime
     today = datetime.now().strftime('%Y-%m-%d')
-    today_amount = cursor.execute('''
-        SELECT SUM(w.amount) 
-        FROM withdrawals w
-        JOIN stores s ON w.cr = s.cr
-        WHERE s.advisor_id = ? AND w.date = ?
-    ''', (email, today)).fetchone()[0] or 0
+    
+    if role == 'ADMIN':
+        today_amount = cursor.execute('SELECT SUM(amount) FROM withdrawals WHERE date = ?', (today,)).fetchone()[0] or 0
+    else:
+        today_amount = cursor.execute('''
+            SELECT SUM(w.amount) 
+            FROM withdrawals w
+            JOIN stores s ON w.cr = s.cr
+            WHERE s.advisor_id = ? AND w.date = ?
+        ''', (email, today)).fetchone()[0] or 0
     
     conn.close()
     return jsonify({
@@ -335,7 +346,15 @@ def get_stores(email):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    stores = cursor.execute('SELECT cr, name FROM stores WHERE advisor_id = ?', (email,)).fetchall()
+    
+    user = cursor.execute('SELECT role FROM users WHERE username = ?', (email,)).fetchone()
+    role = user[0] if user else 'ASESOR'
+    
+    if role == 'ADMIN':
+        stores = cursor.execute('SELECT cr, name FROM stores').fetchall()
+    else:
+        stores = cursor.execute('SELECT cr, name FROM stores WHERE advisor_id = ?', (email,)).fetchall()
+        
     conn.close()
     return jsonify([dict(s) for s in stores])
 

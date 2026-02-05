@@ -238,7 +238,7 @@
                             } else if (data.user.role === 'ASESOR') {
                                 loadDashboardData(data.user.username, 'reportes');
                             } else if (data.user.role === 'ADMIN') {
-                                setView('reportes');
+                                loadDashboardData(data.user.username, 'reportes');
                             } else {
                                 loadDashboardData(data.user.username);
                             }
