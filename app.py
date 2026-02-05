@@ -296,7 +296,7 @@ def login():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     user = cursor.execute(
-        'SELECT username, name, role, cr FROM users WHERE username = ? AND password = ?',
+        'SELECT username, name, role, cr FROM users WHERE LOWER(username) = LOWER(?) AND password = ?',
         (username, password)
     ).fetchone()
     conn.close()
