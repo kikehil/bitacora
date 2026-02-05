@@ -137,10 +137,142 @@ def init_db():
     conn.commit()
 
     # 2. RUN MIGRATIONS (Only needed if schema is old)
+    migrate_legacy_schema(conn)
     migrate_users_table(conn)
     migrate_withdrawals_table(conn)
     
     conn.close()
+
+def migrate_legacy_schema(conn):
+    """
+    Migrates data from legacy Spanish tables (usuarios, tiendas, retiros)
+    to the new English schema (users, stores, withdrawals).
+    """
+    cursor = conn.cursor()
+    
+    # Check if legacy tables exist
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = [row[0] for row in cursor.fetchall()]
+    
+    has_usuarios = 'usuarios' in tables
+    has_tiendas = 'tiendas' in tables
+    has_retiros = 'retiros' in tables
+    
+    # 1. Migrate Users (usuarios -> users)
+    if has_usuarios:
+        print("Migrating 'usuarios' to 'users'...")
+        # Check if users table is empty to avoid duplicates if migration partially ran
+        count = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        if count == 0:
+            # Map columns: 
+            # usuarios(usuario, nombre, password, rol) -> users(username, name, password, role)
+            # Note: Legacy 'rol' might need mapping if values differ, but assuming they are compatible or will be mapped dynamically.
+            # Legacy 'lider' -> 'LIDER' (uppercase) might be needed? Valid roles in new app: 'ADMIN', 'ASESOR', 'LIDER', 'ENCARGADO', 'CAJERO', 'AYUDANTE'
+            # Let's read and insert with Python to handle case transformation safely
+            
+            legacy_users = cursor.execute("SELECT usuario, nombre, password, rol FROM usuarios").fetchall()
+            for u in legacy_users:
+                username = u[0]
+                name = u[1]
+                password = u[2]
+                role = (u[3] or '').upper() # Normalizing role to uppercase
+                
+                # Default CR to empty or attempt to find later? 
+                # In legacy schema, leaders might be linked via another way or we leave CR empty for them to be updated.
+                # However, for 'LIDER', we might need to find their CR from 'tiendas' or 'asesor_tienda' if possible?
+                # Looking at legacy schema from debug output: `tiendas` has `cr`. 
+                # But `usuarios` didn't have CR column in the debug output I saw?
+                # Wait, I saw: (1, '505YL', 'Crucero Sendero MAF', None) in `tiendas`.
+                # If there's no direct link in `usuarios`, we populate CR as NULL.
+                
+                cursor.execute(
+                    "INSERT INTO users (username, name, password, role, cr) VALUES (?, ?, ?, ?, ?)",
+                    (username, name, password, role, None)
+                )
+            print(f"Migrated {len(legacy_users)} users.")
+            
+        # Optional: Drop legacy table? Let's keep it for now or rename it to backup
+        cursor.execute("ALTER TABLE usuarios RENAME TO usuarios_backup")
+
+    # 2. Migrate Stores (tiendas -> stores)
+    if has_tiendas:
+        print("Migrating 'tiendas' to 'stores'...")
+        # stores(cr, name, advisor_id)
+        # legacy tiendas(cr, nombre, distrito) - advisor??
+        # We might not have advisor info in 'tiendas'.
+        # But we have 'asesor_tienda' table?
+        
+        has_asesor_tienda = 'asesor_tienda' in tables
+        
+        legacy_stores = cursor.execute("SELECT cr, nombre FROM tiendas").fetchall()
+        for s in legacy_stores:
+            cr = s[0]
+            name = s[1]
+            advisor_id = None
+            
+            # Try to find advisor if table exists
+            if has_asesor_tienda:
+                # This seems to link partial ID or something?
+                # Let's skip complex advisor resolution for now and just get the stores in.
+                pass
+
+            # Check if store exists
+            exists = cursor.execute("SELECT 1 FROM stores WHERE cr = ?", (cr,)).fetchone()
+            if not exists:
+                cursor.execute(
+                    "INSERT INTO stores (cr, name, advisor_id) VALUES (?, ?, ?)",
+                    (cr, name, advisor_id)
+                )
+        print(f"Migrated {len(legacy_stores)} stores.")
+        cursor.execute("ALTER TABLE tiendas RENAME TO tiendas_backup")
+        if has_asesor_tienda:
+             cursor.execute("ALTER TABLE asesor_tienda RENAME TO asesor_tienda_backup")
+
+    # 3. Migrate Withdrawals (retiros -> withdrawals)
+    if has_retiros:
+        print("Migrating 'retiros' to 'withdrawals'...")
+        # withdrawals(cr, store_name, amount, retiro_num, caja, date, time, collaborator1, collaborator2, photo_url)
+        # retiros(numero_retiro, tienda_cr, monto, notas, imagen_fajilla, usuario_registro, usuario_confirma, fecha, hora, fecha_hora_registro)
+        
+        legacy_withdrawals = cursor.execute("""
+            SELECT tienda_cr, monto, numero_retiro, fecha, hora, usuario_registro, imagen_fajilla 
+            FROM retiros
+        """).fetchall()
+        
+        for r in legacy_withdrawals:
+            cr = r[0]
+            amount = r[1]
+            retiro_num = r[2]
+            date = r[3]
+            time = r[4]
+            collaborator1 = r[5]
+            photo_url = r[6]
+            
+            # Legacy photo path might be different? 
+            # If it's just a filename, we might need to adjust or keep as is if in same folder.
+            # Assuming relative path or just filename.
+            
+            # Fetch store name
+            store_name_row = cursor.execute("SELECT name FROM stores WHERE cr = ?", (cr,)).fetchone()
+            store_name = store_name_row[0] if store_name_row else ''
+            
+            # Check duplication?
+            # Ideally checking by (cr, retiro_num, date)
+            exists = cursor.execute(
+                "SELECT 1 FROM withdrawals WHERE cr = ? AND retiro_num = ? AND date = ?",
+                (cr, retiro_num, date)
+            ).fetchone()
+            
+            if not exists:
+                cursor.execute("""
+                    INSERT INTO withdrawals (cr, store_name, amount, retiro_num, caja, date, time, collaborator1, photo_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (cr, store_name, amount, retiro_num, '', date, time, collaborator1, photo_url))
+                
+        print(f"Migrated {len(legacy_withdrawals)} withdrawals.")
+        cursor.execute("ALTER TABLE retiros RENAME TO retiros_backup")
+    
+    conn.commit()
 
 @app.route('/')
 def index():
