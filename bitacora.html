@@ -1405,6 +1405,16 @@
                 } catch (e) { console.error(e); }
             };
 
+            useEffect(() => {
+                if (user) {
+                    if (user.role === 'ADMIN' || user.role === 'ASESOR') {
+                        loadDashboardData(user.username, 'reportes');
+                    } else {
+                        loadStoreInfo(user.cr);
+                    }
+                }
+            }, []);
+
             if (!user) return <Login />;
             let content = null;
             if (view === 'users') content = <UserManagement />;
