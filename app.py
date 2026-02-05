@@ -100,10 +100,8 @@ def migrate_withdrawals_table(conn):
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    migrate_users_table(conn)
-    migrate_withdrawals_table(conn)
-    migrate_users_table(conn)
-    # Tabla de usuarios (si no existe)
+
+    # 1. CREATE TABLES FIRST (Latest Schema)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,7 +112,6 @@ def init_db():
             cr TEXT
         )
     ''')
-    # Tabla de retiros
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,7 +127,6 @@ def init_db():
             photo_url TEXT
         )
     ''')
-    # Tabla de tiendas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stores (
             cr TEXT PRIMARY KEY,
@@ -139,6 +135,11 @@ def init_db():
         )
     ''')
     conn.commit()
+
+    # 2. RUN MIGRATIONS (Only needed if schema is old)
+    migrate_users_table(conn)
+    migrate_withdrawals_table(conn)
+    
     conn.close()
 
 @app.route('/')
